@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import {
+  useEffect,
+  useRef,
   useState,
   useTransition,
   type FormEvent,
@@ -14,6 +16,7 @@ import {
   IconSearch,
   IconShield,
   IconTicket,
+  IconX,
 } from "@/components/icons";
 import {
   CATEGORIAS,
@@ -53,6 +56,8 @@ export function EscalamientoForm() {
     generarTextoPlantilla(tipologiaInicial, {}),
   );
   const [isPending, startTransition] = useTransition();
+  const formRef = useRef<HTMLFormElement>(null);
+  const radicadoExitoso = state.ok ? state.radicado : undefined;
 
   const plantilla = PLANTILLAS.find((item) => item.nombre === tipologia);
 
@@ -64,6 +69,33 @@ export function EscalamientoForm() {
       ),
     );
   }
+
+  function cerrarExito() {
+    formRef.current?.reset();
+    setState(initialState);
+    setPreview(generarTextoPlantilla(tipologia, {}));
+  }
+
+  useEffect(() => {
+    if (!radicadoExitoso) return;
+
+    const overflowAnterior = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      formRef.current?.reset();
+      setState(initialState);
+      setPreview(generarTextoPlantilla(tipologia, {}));
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = overflowAnterior;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [radicadoExitoso, tipologia]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -84,74 +116,9 @@ export function EscalamientoForm() {
     });
   }
 
-  if (state.ok && state.radicado) {
-    return (
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-soft">
-        <div className="relative overflow-hidden bg-slate-950 px-6 py-8 text-white sm:px-8">
-          <div
-            aria-hidden
-            className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(16,185,129,0.28),transparent_40%),radial-gradient(circle_at_90%_90%,rgba(99,102,241,0.3),transparent_40%)]"
-          />
-          <div className="relative">
-            <span className="inline-flex items-center gap-2 rounded-full bg-emerald-400/[0.15] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200 ring-1 ring-inset ring-emerald-300/20">
-              <IconCheck className="h-3.5 w-3.5" />
-              Escalamiento radicado
-            </span>
-            <h2 className="mt-4 text-2xl font-semibold tracking-tight">
-              Radicado creado correctamente
-            </h2>
-            <p className="mt-2 max-w-lg text-sm leading-6 text-slate-300">
-              Comparte este número con el cliente o consérvalo para hacer
-              seguimiento. El caso ya está en la bandeja de Backoffice.
-            </p>
-
-            <div className="mt-6 flex flex-col gap-3 rounded-xl border border-white/10 bg-white/5 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Número de radicado
-                </p>
-                <p className="mt-1 font-mono text-xl font-semibold tracking-tight text-white sm:text-2xl">
-                  {state.radicado}
-                </p>
-              </div>
-              <CopyButton
-                value={state.radicado}
-                label="Copiar radicado"
-                copiedLabel="Radicado copiado"
-                tone="dark"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-3 px-6 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-8">
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href={`/consulta?radicado=${encodeURIComponent(state.radicado)}`}
-              className="btn-secondary"
-            >
-              <IconSearch className="h-4 w-4 text-slate-500" />
-              Consultar trazabilidad
-            </Link>
-            <button
-              type="button"
-              onClick={() => setState(initialState)}
-              className="btn-primary"
-            >
-              Crear otro escalamiento
-              <IconArrowRight className="h-4 w-4" />
-            </button>
-          </div>
-          <p className="text-xs text-slate-400">
-            Estado inicial: <span className="font-semibold">Pendiente</span>
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <>
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex items-start gap-3 border-b border-slate-100 px-5 py-5 sm:px-6">
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-700">
           <IconTicket className="h-5 w-5" />
@@ -167,6 +134,7 @@ export function EscalamientoForm() {
       </div>
 
       <form
+        ref={formRef}
         onSubmit={handleSubmit}
         onInput={(event) => refrescarPreview(event.currentTarget, tipologia)}
         className="px-5 py-5 sm:px-6 sm:py-6"
@@ -364,6 +332,104 @@ export function EscalamientoForm() {
           </button>
         </div>
       </form>
-    </div>
+      </div>
+
+      {radicadoExitoso ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) cerrarExito();
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="exito-title"
+            className="animate-fade-up w-full max-w-md overflow-hidden rounded-t-2xl border border-slate-200 bg-white shadow-soft sm:rounded-2xl"
+          >
+            <div className="relative overflow-hidden bg-slate-950 px-6 py-7 text-white">
+              <div
+                aria-hidden
+                className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(16,185,129,0.28),transparent_45%),radial-gradient(circle_at_90%_90%,rgba(99,102,241,0.3),transparent_45%)]"
+              />
+              <button
+                type="button"
+                onClick={cerrarExito}
+                aria-label="Cerrar"
+                className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              >
+                <IconX className="h-4 w-4" />
+              </button>
+
+              <div className="relative">
+                <span className="inline-flex items-center gap-2 rounded-full bg-emerald-400/[0.15] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200 ring-1 ring-inset ring-emerald-300/20">
+                  <IconCheck className="h-3.5 w-3.5" />
+                  Radicado exitoso
+                </span>
+                <h2
+                  id="exito-title"
+                  className="mt-4 text-xl font-semibold tracking-tight"
+                >
+                  Escalamiento radicado
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-slate-300">
+                  El caso ya está en la bandeja de Backoffice. Comparte el
+                  radicado con el cliente para hacer seguimiento.
+                </p>
+
+                <div className="mt-5 flex flex-col gap-3 rounded-xl border border-white/10 bg-white/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Número de radicado
+                    </p>
+                    <p className="mt-1 font-mono text-xl font-semibold tracking-tight text-white">
+                      {radicadoExitoso}
+                    </p>
+                  </div>
+                  <CopyButton
+                    value={radicadoExitoso}
+                    label="Copiar radicado"
+                    copiedLabel="Radicado copiado"
+                    tone="dark"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 px-6 py-5">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-800">
+                  Tiempo estimado de respuesta
+                </p>
+                <p className="mt-1 text-sm font-semibold text-amber-900">
+                  24 a 72 horas
+                </p>
+                <p className="mt-1 text-xs leading-5 text-amber-800/90">
+                  Backoffice gestionará el caso dentro de este rango y
+                  registrará cada movimiento en la trazabilidad.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                <Link
+                  href={`/consulta?radicado=${encodeURIComponent(radicadoExitoso)}`}
+                  className="btn-secondary"
+                >
+                  <IconSearch className="h-4 w-4 text-slate-500" />
+                  Consultar trazabilidad
+                </Link>
+                <button
+                  type="button"
+                  onClick={cerrarExito}
+                  className="btn-primary"
+                >
+                  Entendido / Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }

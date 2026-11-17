@@ -143,6 +143,24 @@ export function IconShield(props: IconProps) {
   );
 }
 
+export function IconX(props: IconProps) {
+  return (
+    <svg {...baseProps(props)}>
+      <path d="m6 6 12 12" />
+      <path d="m18 6-12 12" />
+    </svg>
+  );
+}
+
+export function IconCamera(props: IconProps) {
+  return (
+    <svg {...baseProps(props)}>
+      <path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.2-1.8a1 1 0 0 1 .8-.4h5a1 1 0 0 1 .8.4L16.5 7h2A1.5 1.5 0 0 1 20 8.5v9A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5v-9Z" />
+      <circle cx="12" cy="12.5" r="3.2" />
+    </svg>
+  );
+}
+
 export function IconUserCog(props: IconProps) {
   return (
     <svg {...baseProps(props)}>

@@ -13,8 +13,10 @@ import {
 import { PublicHeader } from "@/components/public-header";
 import { StatusBadge } from "@/components/status-badge";
 import { Timeline } from "@/components/timeline";
+import { WorkspaceHeader } from "@/components/workspace-header";
+import { getSessionContext } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import type { ConsultaRadicado } from "@/lib/types";
+import type { ConsultaRadicado, Usuario } from "@/lib/types";
 import { cn, formatDateTime } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -48,6 +50,15 @@ export default async function ConsultaPage({
   const radicadoBuscado =
     typeof radicado === "string" ? radicado.trim() : "";
 
+  let perfil: Usuario | null = null;
+
+  try {
+    const session = await getSessionContext();
+    perfil = session.user && session.perfil ? session.perfil : null;
+  } catch {
+    perfil = null;
+  }
+
   let consulta: ConsultaRadicado | null = null;
   let error: string | null = null;
 
@@ -74,7 +85,17 @@ export default async function ConsultaPage({
 
   return (
     <div className="min-h-screen">
-      <PublicHeader />
+      {perfil ? (
+        <WorkspaceHeader
+          nombre={perfil.nombre_completo}
+          correo={perfil.correo}
+          rol={perfil.rol}
+          avatarUrl={perfil.avatar_url}
+          active="consulta"
+        />
+      ) : (
+        <PublicHeader />
+      )}
 
       <section className="relative overflow-hidden border-b border-slate-200/70 bg-white">
         <div
@@ -338,9 +359,18 @@ export default async function ConsultaPage({
             <Link href="/escalamiento" className="hover:text-slate-600">
               Crear escalamiento
             </Link>
-            <Link href="/login" className="hover:text-slate-600">
-              Acceso interno
-            </Link>
+            {perfil ? (
+              <Link
+                href={perfil.rol === "backoffice" ? "/backoffice" : "/escalamiento"}
+                className="hover:text-slate-600"
+              >
+                {perfil.rol === "backoffice" ? "Bandeja" : "Mi panel"}
+              </Link>
+            ) : (
+              <Link href="/login" className="hover:text-slate-600">
+                Acceso interno
+              </Link>
+            )}
           </div>
         </div>
       </main>

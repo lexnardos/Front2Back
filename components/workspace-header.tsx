@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Brand } from "@/components/brand";
 import { IconLogout, IconUser } from "@/components/icons";
+import { ProfileDialog } from "@/components/profile-dialog";
 import { logout } from "@/app/login/actions";
 import type { RolUsuario } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -9,13 +10,17 @@ type ActiveSection = "escalamiento" | "backoffice" | "consulta";
 
 interface WorkspaceHeaderProps {
   nombre: string;
+  correo: string;
   rol: RolUsuario;
+  avatarUrl: string | null;
   active: ActiveSection;
 }
 
 export function WorkspaceHeader({
   nombre,
+  correo,
   rol,
+  avatarUrl,
   active,
 }: WorkspaceHeaderProps) {
   const links: Array<{ href: string; label: string; key: ActiveSection }> = [];
@@ -52,19 +57,28 @@ export function WorkspaceHeader({
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white py-1 pl-1 pr-3 sm:flex">
-            <span className="grid h-7 w-7 place-items-center rounded-full bg-slate-100 text-slate-500">
-              <IconUser className="h-4 w-4" />
-            </span>
-            <span className="flex flex-col leading-tight">
-              <span className="max-w-[150px] truncate text-xs font-semibold text-slate-800">
-                {nombre}
+          {rol === "backoffice" ? (
+            <ProfileDialog
+              nombre={nombre}
+              correo={correo}
+              rol={rol}
+              avatarUrl={avatarUrl}
+            />
+          ) : (
+            <div className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white py-1 pl-1 pr-3 sm:flex">
+              <span className="grid h-7 w-7 place-items-center rounded-full bg-slate-100 text-slate-500">
+                <IconUser className="h-4 w-4" />
               </span>
-              <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
-                {rol}
+              <span className="flex flex-col leading-tight">
+                <span className="max-w-[150px] truncate text-xs font-semibold text-slate-800">
+                  {nombre}
+                </span>
+                <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                  {rol}
+                </span>
               </span>
-            </span>
-          </div>
+            </div>
+          )}
           <form action={logout}>
             <button
               type="submit"

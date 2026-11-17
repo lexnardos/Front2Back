@@ -23,7 +23,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext> => {
 
   const { data } = await supabase
     .from("usuarios")
-    .select("id, nombre_completo, correo, rol, created_at")
+    .select("id, nombre_completo, correo, rol, avatar_url, created_at")
     .eq("id", user.id)
     .maybeSingle();
 

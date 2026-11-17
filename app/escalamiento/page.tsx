@@ -34,7 +34,9 @@ export default async function EscalamientoPage() {
     <div className="min-h-screen">
       <WorkspaceHeader
         nombre={perfil.nombre_completo}
+        correo={perfil.correo}
         rol={perfil.rol}
+        avatarUrl={perfil.avatar_url}
         active="escalamiento"
       />
 

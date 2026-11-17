@@ -30,7 +30,9 @@ export default async function BackofficeLayout({
     <div className="min-h-screen">
       <WorkspaceHeader
         nombre={perfil.nombre_completo}
+        correo={perfil.correo}
         rol={perfil.rol}
+        avatarUrl={perfil.avatar_url}
         active="backoffice"
       />
       <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:py-10">

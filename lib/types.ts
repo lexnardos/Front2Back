@@ -16,6 +16,7 @@ export interface Usuario {
   nombre_completo: string;
   correo: string;
   rol: RolUsuario;
+  avatar_url: string | null;
   created_at: string;
 }
 
@@ -83,4 +84,12 @@ export interface ActualizarCasoState {
   ok: boolean;
   error?: string;
   message?: string;
+}
+
+export interface ActualizarPerfilState {
+  ok: boolean;
+  error?: string;
+  message?: string;
+  nombre_completo?: string;
+  avatar_url?: string | null;
 }

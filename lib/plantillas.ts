@@ -47,6 +47,61 @@ function v(datos: DatosPlantilla, campo: string): string {
   return (datos[campo] ?? "").trim();
 }
 
+const camposAccesoApp: CampoPlantilla[] = [
+  {
+    name: "fecha_hora_falla",
+    label: "Fecha y hora de falla",
+    type: "datetime-local",
+  },
+  {
+    name: "dispositivo",
+    label: "Dispositivo utilizado (computador o teléfono)",
+    type: "text",
+    placeholder: "Ej. Computador / Teléfono",
+    maxLength: 120,
+  },
+  {
+    name: "marca_modelo",
+    label: "Marca o modelo de equipo",
+    type: "text",
+    placeholder: "Ej. Samsung Galaxy S23",
+    maxLength: 160,
+  },
+  {
+    name: "sistema_operativo",
+    label: "Sistema operativo (iOS, Android, etc.)",
+    type: "text",
+    placeholder: "Ej. Android 14 / Windows 11",
+    maxLength: 120,
+  },
+  {
+    name: "version_app",
+    label: "Versión del App",
+    type: "text",
+    placeholder: "Ej. v12.4.1",
+    maxLength: 60,
+  },
+  {
+    name: "acceso_red",
+    label: "Tipo de acceso a la red (Wifi o LAN)",
+    type: "select",
+    options: opciones(["Wifi", "LAN"]),
+  },
+  {
+    name: "navegador",
+    label: "Navegador",
+    type: "text",
+    placeholder: "Ej. Google Chrome v120",
+    maxLength: 120,
+  },
+  {
+    name: "utiliza_proxy",
+    label: "¿Utiliza Proxy?",
+    type: "select",
+    options: opciones(["No", "Sí"]),
+  },
+];
+
 export const PLANTILLAS: Plantilla[] = [
   {
     nombre: "Escucha de llamada",
@@ -493,10 +548,10 @@ Orden y Fecha de activación del Servicio: ${v(datos, "orden_fecha_activacion")}
 Detalle de la reclamación: ${v(datos, "detalle_reclamacion")}`,
   },
   {
-    nombre: "Requerimiento Mi Asistencia 360 (OTTs / Claro Drive)",
+    nombre: "OTT",
     categoria: "Aplicaciones",
     descripcion:
-      "IMPORTANTE: Solicitar pantallazos de los errores al cliente. Dejar la plantilla en la carpeta de RR F7 Gestión cliente críticos y escalar al Back Office desde Genesys.",
+      "IMPORTANTE: Plantilla de OTTs de Mi Asistencia 360. Solicitar pantallazos de los errores al cliente. Dejar la plantilla en la carpeta de RR F7 Gestión cliente críticos y escalar al Back Office desde Genesys.",
     campos: [
       {
         name: "cuenta",
@@ -526,6 +581,7 @@ Detalle de la reclamación: ${v(datos, "detalle_reclamacion")}`,
         label: "Nombre de OTT",
         type: "text",
         placeholder: "Ej. Netflix",
+        required: true,
         maxLength: 120,
       },
       {
@@ -533,84 +589,14 @@ Detalle de la reclamación: ${v(datos, "detalle_reclamacion")}`,
         label: "OTTs",
         type: "text",
         placeholder: "Ej. Netflix, Max, Paramount+",
+        required: true,
         maxLength: 250,
       },
-      {
-        name: "numero_contacto",
-        label: "Número de contacto (Claro Drive)",
-        type: "tel",
-        placeholder: "Ej. 3101234567",
-        maxLength: 30,
-      },
-      {
-        name: "mensaje_error",
-        label: "Mensaje de error (Claro Drive)",
-        type: "text",
-        placeholder: "Ej. Error de autenticación 500",
-        maxLength: 250,
-      },
-      {
-        name: "tipo_suscripcion",
-        label: "Tipo de suscripción (Paga o Bundle)",
-        type: "select",
-        options: opciones(["Paga", "Bundle"]),
-      },
-      {
-        name: "fecha_hora_falla",
-        label: "Fecha y hora de falla",
-        type: "datetime-local",
-      },
-      {
-        name: "dispositivo",
-        label: "Dispositivo utilizado (computador o teléfono)",
-        type: "text",
-        placeholder: "Ej. Computador / Teléfono",
-        maxLength: 120,
-      },
-      {
-        name: "marca_modelo",
-        label: "Marca o modelo de equipo",
-        type: "text",
-        placeholder: "Ej. Samsung Galaxy S23",
-        maxLength: 160,
-      },
-      {
-        name: "sistema_operativo",
-        label: "Sistema operativo (iOS, Android, etc.)",
-        type: "text",
-        placeholder: "Ej. Android 14 / Windows 11",
-        maxLength: 120,
-      },
-      {
-        name: "version_app",
-        label: "Versión del App",
-        type: "text",
-        placeholder: "Ej. v12.4.1",
-        maxLength: 60,
-      },
-      {
-        name: "acceso_red",
-        label: "Tipo de acceso a la red (Wifi o LAN)",
-        type: "select",
-        options: opciones(["Wifi", "LAN"]),
-      },
-      {
-        name: "navegador",
-        label: "Navegador",
-        type: "text",
-        placeholder: "Ej. Google Chrome v120",
-        maxLength: 120,
-      },
-      {
-        name: "utiliza_proxy",
-        label: "¿Utiliza Proxy?",
-        type: "select",
-        options: opciones(["No", "Sí"]),
-      },
+      ...camposAccesoApp,
     ],
     formato: (datos) =>
       `PLANTILLAS DE GESTIÓN
-Requerimiento Mi Asistencia 360 (OTTs / Claro Drive)
+Requerimiento Mi Asistencia 360 - OTT
 Cuenta: ${v(datos, "cuenta")}
 Cédula (si es móvil): ${v(datos, "cedula")}
 Correo electrónico: ${v(datos, "correo")}
@@ -619,10 +605,83 @@ DATOS OTTs
 Nombre de ott: ${v(datos, "nombre_ott")}
 Otts: ${v(datos, "otts")}
 
+DATOS DEL ACCESO
+Fecha y hora de falla: ${v(datos, "fecha_hora_falla")}
+Dispositivo utilizado (computador o teléfono): ${v(datos, "dispositivo")}
+Marca o modelo de equipo: ${v(datos, "marca_modelo")}
+Sistema operativo (iOS, Android, etc.): ${v(datos, "sistema_operativo")}
+Versión del App: ${v(datos, "version_app")}
+Tipo de acceso a la red (Wifi o LAN): ${v(datos, "acceso_red")}
+Navegador: ${v(datos, "navegador")}
+¿Utiliza Proxy?: ${v(datos, "utiliza_proxy")}`,
+  },
+  {
+    nombre: "Claro Drive",
+    categoria: "Aplicaciones",
+    descripcion:
+      "IMPORTANTE: Plantilla de Claro Drive de Mi Asistencia 360. Solicitar pantallazos de los errores al cliente. Dejar la plantilla en la carpeta de RR F7 Gestión cliente críticos y escalar al Back Office desde Genesys.",
+    campos: [
+      {
+        name: "cuenta",
+        label: "Cuenta",
+        type: "text",
+        placeholder: "Ej. 92837465",
+        required: true,
+        maxLength: 60,
+      },
+      {
+        name: "cedula",
+        label: "Cédula (si es móvil)",
+        type: "text",
+        placeholder: "Ej. 1020304050",
+        maxLength: 30,
+      },
+      {
+        name: "correo",
+        label: "Correo electrónico",
+        type: "email",
+        placeholder: "Ej. cliente@gmail.com",
+        required: true,
+        maxLength: 160,
+      },
+      {
+        name: "numero_contacto",
+        label: "Número de contacto",
+        type: "tel",
+        placeholder: "Ej. 3101234567",
+        required: true,
+        maxLength: 30,
+      },
+      {
+        name: "mensaje_error",
+        label: "Mensaje de error",
+        type: "text",
+        placeholder: "Ej. Error de autenticación 500",
+        required: true,
+        maxLength: 250,
+      },
+      {
+        name: "tipo_suscripcion",
+        label: "Tipo de suscripción (Paga o Bundle)",
+        type: "select",
+        required: true,
+        options: opciones(["Paga", "Bundle"]),
+      },
+      ...camposAccesoApp,
+    ],
+    formato: (datos) =>
+      `PLANTILLAS DE GESTIÓN
+Requerimiento Mi Asistencia 360 - Claro Drive
+Cuenta: ${v(datos, "cuenta")}
+Cédula (si es móvil): ${v(datos, "cedula")}
+Correo electrónico: ${v(datos, "correo")}
+
 DATOS CLARO DRIVE
 Número de contacto: ${v(datos, "numero_contacto")}
 Mensaje de error: ${v(datos, "mensaje_error")}
 Tipo de suscripción (Paga o Bundle): ${v(datos, "tipo_suscripcion")}
+
+DATOS DEL ACCESO
 Fecha y hora de falla: ${v(datos, "fecha_hora_falla")}
 Dispositivo utilizado (computador o teléfono): ${v(datos, "dispositivo")}
 Marca o modelo de equipo: ${v(datos, "marca_modelo")}

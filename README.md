@@ -113,11 +113,19 @@ Copia el archivo de ejemplo y completa los valores del proyecto Supabase (**Proj
 cp .env.example .env.local
 ```
 
+Para despliegue con Docker, usa `.env.production` (no se versiona):
+
+```bash
+cp .env.production.example .env.production
+```
+
 Puedes usar la **anon key** clásica o la nueva **publishable key** de Supabase:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://tu-proyecto.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+# o NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+```
 ```
 
 También se admite el formato anterior:
@@ -146,7 +154,28 @@ npm run build
 npm start
 ```
 
-## 6. Publicar en GitHub y desplegar en la web
+## 6. Despliegue con Docker en un servidor
+
+Requisitos en el servidor: Docker y Docker Compose, y acceso Git al repositorio.
+
+```bash
+git clone https://github.com/lexnardos/Front2Back.git
+cd Front2Back
+cp .env.production.example .env.production
+# edita .env.production con la URL y la publishable key de Supabase
+docker compose up -d --build
+```
+
+La aplicación queda disponible en `http://IP-DEL-SERVIDOR:3000`. Para actualizar tras un `git push`:
+
+```bash
+git pull
+docker compose up -d --build
+```
+
+Si publicas detrás de un proxy inverso (Nginx/Caddy) con HTTPS, registra ese dominio como `Site URL` en Supabase (**Authentication → URL Configuration**).
+
+## 7. Publicar en GitHub y desplegar en la web
 
 El repositorio no incluye `.env.local`; las credenciales se configuran aparte en cada entorno.
 
