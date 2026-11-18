@@ -151,5 +151,9 @@ export async function crearCaso(
   revalidatePath("/backoffice");
   revalidatePath("/consulta");
 
-  return { ok: true, radicado: caso.numero_radicado };
+  return {
+    ok: true,
+    radicado: caso.numero_radicado,
+    slaDeadline: caso.sla_deadline ?? undefined,
+  };
 }

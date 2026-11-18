@@ -87,7 +87,10 @@ npm install
 2. Abre **SQL Editor** y ejecuta completo el archivo [`schema.sql`](./schema.sql).
    - Crea tipos, tablas, índices, triggers, funciones RPC y políticas RLS.
    - La generación del radicado es atómica y consecutiva por año.
-3. En **Authentication → Users**, crea los usuarios con correo y contraseña.
+   - Incluye SLA de 72 horas, notificaciones y Realtime.
+   - Si tu proyecto ya tenía ejecutado el esquema anterior, ejecuta además
+     [`migration_sla_notificaciones.sql`](./migration_sla_notificaciones.sql) en el SQL Editor.
+ 3. En **Authentication → Users**, crea los usuarios con correo y contraseña.
    - El trigger `handle_new_user` crea automáticamente el perfil en `public.usuarios` con rol `agente`.
    - Usa el campo de metadata `nombre_completo` al crear el usuario para asignar el nombre visible.
 4. Promueve a los analistas de Backoffice:
@@ -104,6 +107,14 @@ where correo = 'analista@empresa.com';
 
 - `agente`: puede radicar escalamientos y ver sus propios casos.
 - `backoffice`: puede ver y gestionar todos los casos, asignarlos y registrar movimientos.
+
+### SLA y notificaciones
+
+- Cada caso guarda `created_at` y `sla_deadline` (72 horas después de la radicación) mediante un trigger de base de datos.
+- El primer movimiento del Backoffice fija `primera_respuesta_at`, que detiene la cuenta regresiva y muestra `Respondido en XXh XXm`.
+- Semáforo: verde (>24 h), ámbar (≤24 h) y rojo (vencido).
+- La tabla `public.notificaciones` guarda los eventos de radicación y respuesta. Está protegida con RLS y suscrita a `supabase_realtime`; la campana está disponible en todos los headers (también en las vistas públicas, donde enlaza al login) y permite marcar como leídas o abrir el caso.
+- Si no llegan notificaciones en tiempo real, confirma que `public.notificaciones` esté en la publicación `supabase_realtime` (**Database → Publications**) y que Realtime esté habilitado para el proyecto.
 
 ## 3. Variables de entorno
 

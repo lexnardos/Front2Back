@@ -13,6 +13,7 @@ import {
   IconUser,
   IconUserCog,
 } from "@/components/icons";
+import { SlaCountdown } from "@/components/sla-countdown";
 import { StatusBadge } from "@/components/status-badge";
 import { Timeline } from "@/components/timeline";
 import { getSessionContext } from "@/lib/auth";
@@ -115,6 +116,14 @@ export default async function CasoDetallePage({ params }: CasoPageProps) {
                 <IconClock className="h-3.5 w-3.5" />
                 {caso.paso_actual}
               </span>
+              <SlaCountdown
+                compact
+                createdAt={caso.created_at}
+                slaDeadline={caso.sla_deadline}
+                primeraRespuestaAt={caso.primera_respuesta_at}
+                estado={caso.estado}
+                updatedAt={caso.updated_at}
+              />
             </div>
           </div>
 
@@ -213,6 +222,14 @@ export default async function CasoDetallePage({ params }: CasoPageProps) {
         </div>
 
         <div className="space-y-4 xl:sticky xl:top-24">
+          <SlaCountdown
+            createdAt={caso.created_at}
+            slaDeadline={caso.sla_deadline}
+            primeraRespuestaAt={caso.primera_respuesta_at}
+            estado={caso.estado}
+            updatedAt={caso.updated_at}
+          />
+
           <BackofficeUpdateForm
             casoId={caso.id}
             estadoActual={caso.estado}

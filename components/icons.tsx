@@ -96,6 +96,15 @@ export function IconLock(props: IconProps) {
   );
 }
 
+export function IconBell(props: IconProps) {
+  return (
+    <svg {...baseProps(props)}>
+      <path d="M18 9a6 6 0 0 0-12 0c0 5-2 6-2 7h16c0-1-2-2-2-7Z" />
+      <path d="M10 19a2 2 0 0 0 4 0" />
+    </svg>
+  );
+}
+
 export function IconInbox(props: IconProps) {
   return (
     <svg {...baseProps(props)}>

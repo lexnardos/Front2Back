@@ -1,8 +1,17 @@
 import Link from "next/link";
 import { Brand } from "@/components/brand";
 import { IconSearch } from "@/components/icons";
+import { NotificationBell } from "@/components/notification-bell";
+import { getSessionContext } from "@/lib/auth";
 
-export function PublicHeader() {
+export async function PublicHeader() {
+  const { user, perfil } = await getSessionContext();
+  const destino = user
+    ? perfil?.rol === "backoffice"
+      ? "/backoffice"
+      : "/escalamiento"
+    : "/login";
+
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
@@ -31,11 +40,12 @@ export function PublicHeader() {
             <IconSearch className="h-4 w-4" />
             Consultar
           </Link>
+          <NotificationBell />
           <Link
-            href="/login"
+            href={destino}
             className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:ring-offset-2"
           >
-            Iniciar sesión
+            {user ? "Mi panel" : "Iniciar sesión"}
           </Link>
         </div>
       </div>

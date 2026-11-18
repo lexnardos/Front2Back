@@ -32,6 +32,8 @@ export interface CasoEscalamiento {
   asignado_a: string | null;
   created_at: string;
   updated_at: string;
+  sla_deadline: string | null;
+  primera_respuesta_at: string | null;
   asignado?: Pick<Usuario, "id" | "nombre_completo" | "correo"> | null;
 }
 
@@ -56,6 +58,8 @@ export interface CasoConsulta {
   creado_por: string;
   created_at: string;
   updated_at: string;
+  sla_deadline: string | null;
+  primera_respuesta_at: string | null;
 }
 
 export interface MovimientoConsulta {
@@ -77,7 +81,23 @@ export interface CrearCasoState {
   ok: boolean;
   error?: string;
   radicado?: string;
+  slaDeadline?: string;
   fieldErrors?: Record<string, string>;
+}
+
+export const TIPOS_NOTIFICACION = ["caso_radicado", "caso_actualizado"] as const;
+
+export type TipoNotificacion = (typeof TIPOS_NOTIFICACION)[number];
+
+export interface Notificacion {
+  id: string;
+  caso_id: string;
+  numero_radicado: string;
+  tipo: TipoNotificacion;
+  titulo: string;
+  mensaje: string;
+  leida: boolean;
+  created_at: string;
 }
 
 export interface ActualizarCasoState {

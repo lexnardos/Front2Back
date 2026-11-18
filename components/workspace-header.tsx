@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Brand } from "@/components/brand";
 import { IconLogout, IconUser } from "@/components/icons";
+import { NotificationBell } from "@/components/notification-bell";
 import { ProfileDialog } from "@/components/profile-dialog";
 import { logout } from "@/app/login/actions";
 import type { RolUsuario } from "@/lib/types";
@@ -57,6 +58,7 @@ export function WorkspaceHeader({
         </div>
 
         <div className="flex items-center gap-3">
+          <NotificationBell rol={rol} />
           {rol === "backoffice" ? (
             <ProfileDialog
               nombre={nombre}

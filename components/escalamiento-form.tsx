@@ -12,11 +12,11 @@ import { CopyButton } from "@/components/copy-button";
 import {
   IconArrowRight,
   IconCheck,
+  IconClock,
   IconFileText,
   IconSearch,
   IconShield,
   IconTicket,
-  IconX,
 } from "@/components/icons";
 import {
   CATEGORIAS,
@@ -26,7 +26,7 @@ import {
 } from "@/lib/plantillas";
 import type { CrearCasoState } from "@/lib/types";
 import { crearCaso } from "@/app/escalamiento/actions";
-import { cn } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 
 const initialState: CrearCasoState = { ok: false };
 const tipologiaInicial = PLANTILLAS[0]?.nombre ?? "";
@@ -82,20 +82,10 @@ export function EscalamientoForm() {
     const overflowAnterior = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      formRef.current?.reset();
-      setState(initialState);
-      setPreview(generarTextoPlantilla(tipologia, {}));
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-
     return () => {
       document.body.style.overflow = overflowAnterior;
-      window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [radicadoExitoso, tipologia]);
+  }, [radicadoExitoso]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -335,16 +325,12 @@ export function EscalamientoForm() {
       </div>
 
       {radicadoExitoso ? (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) cerrarExito();
-          }}
-        >
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4">
           <div
-            role="dialog"
+            role="alertdialog"
             aria-modal="true"
             aria-labelledby="exito-title"
+            aria-describedby="exito-mensaje"
             className="animate-fade-up w-full max-w-md overflow-hidden rounded-t-2xl border border-slate-200 bg-white shadow-soft sm:rounded-2xl"
           >
             <div className="relative overflow-hidden bg-slate-950 px-6 py-7 text-white">
@@ -352,15 +338,6 @@ export function EscalamientoForm() {
                 aria-hidden
                 className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(16,185,129,0.28),transparent_45%),radial-gradient(circle_at_90%_90%,rgba(99,102,241,0.3),transparent_45%)]"
               />
-              <button
-                type="button"
-                onClick={cerrarExito}
-                aria-label="Cerrar"
-                className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-              >
-                <IconX className="h-4 w-4" />
-              </button>
-
               <div className="relative">
                 <span className="inline-flex items-center gap-2 rounded-full bg-emerald-400/[0.15] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200 ring-1 ring-inset ring-emerald-300/20">
                   <IconCheck className="h-3.5 w-3.5" />
@@ -372,9 +349,12 @@ export function EscalamientoForm() {
                 >
                   Escalamiento radicado
                 </h2>
-                <p className="mt-2 text-sm leading-6 text-slate-300">
-                  El caso ya está en la bandeja de Backoffice. Comparte el
-                  radicado con el cliente para hacer seguimiento.
+                <p
+                  id="exito-mensaje"
+                  className="mt-2 text-sm leading-6 text-slate-300"
+                >
+                  Tu solicitud ha sido escalada al Backoffice. El tiempo
+                  estimado de respuesta es de 24 a 72 horas hábiles.
                 </p>
 
                 <div className="mt-5 flex flex-col gap-3 rounded-xl border border-white/10 bg-white/5 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -402,12 +382,19 @@ export function EscalamientoForm() {
                   Tiempo estimado de respuesta
                 </p>
                 <p className="mt-1 text-sm font-semibold text-amber-900">
-                  24 a 72 horas
+                  24 a 72 horas hábiles
                 </p>
                 <p className="mt-1 text-xs leading-5 text-amber-800/90">
-                  Backoffice gestionará el caso dentro de este rango y
-                  registrará cada movimiento en la trazabilidad.
+                  Tu caso quedó registrado con un límite máximo de 72 horas
+                  desde su radicación. Podrás ver la cuenta regresiva en la
+                  consulta del radicado.
                 </p>
+                {state.slaDeadline ? (
+                  <p className="mt-2 flex items-center gap-1.5 border-t border-amber-200/70 pt-2 text-[11px] font-medium text-amber-800">
+                    <IconClock className="h-3.5 w-3.5" />
+                    Límite: {formatDateTime(state.slaDeadline)}
+                  </p>
+                ) : null}
               </div>
 
               <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
@@ -421,9 +408,11 @@ export function EscalamientoForm() {
                 <button
                   type="button"
                   onClick={cerrarExito}
+                  autoFocus
                   className="btn-primary"
                 >
-                  Entendido / Cerrar
+                  Entendido
+                  <IconCheck className="h-4 w-4" />
                 </button>
               </div>
             </div>

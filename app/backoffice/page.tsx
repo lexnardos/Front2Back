@@ -7,6 +7,7 @@ import {
   IconSearch,
   IconUser,
 } from "@/components/icons";
+import { SlaCountdown } from "@/components/sla-countdown";
 import { StatusBadge } from "@/components/status-badge";
 import { getSessionContext } from "@/lib/auth";
 import {
@@ -66,7 +67,7 @@ export default async function BackofficePage({
   let casosQuery = supabase
     .from("casos_escalamiento")
     .select(
-      "id, numero_radicado, tipologia, estado, paso_actual, creado_por, asignado_a, created_at, updated_at, asignado:usuarios!casos_escalamiento_asignado_a_fkey(nombre_completo)",
+      "id, numero_radicado, tipologia, estado, paso_actual, creado_por, asignado_a, created_at, updated_at, sla_deadline, primera_respuesta_at, asignado:usuarios!casos_escalamiento_asignado_a_fkey(nombre_completo)",
     )
     .order("created_at", { ascending: false })
     .limit(100);
@@ -268,6 +269,7 @@ export default async function BackofficePage({
                     <th className="px-4 py-3 font-semibold">Creado por</th>
                     <th className="px-4 py-3 font-semibold">Asignado</th>
                     <th className="px-4 py-3 font-semibold">Estado</th>
+                    <th className="px-4 py-3 font-semibold">SLA</th>
                     <th className="px-4 py-3 font-semibold">Paso actual</th>
                     <th className="px-4 py-3 font-semibold">Fecha</th>
                     <th className="px-4 py-3" />
@@ -307,6 +309,16 @@ export default async function BackofficePage({
                       </td>
                       <td className="whitespace-nowrap px-4 py-3.5">
                         <StatusBadge estado={caso.estado} size="sm" />
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3.5">
+                        <SlaCountdown
+                          compact
+                          createdAt={caso.created_at}
+                          slaDeadline={caso.sla_deadline}
+                          primeraRespuestaAt={caso.primera_respuesta_at}
+                          estado={caso.estado}
+                          updatedAt={caso.updated_at}
+                        />
                       </td>
                       <td className="max-w-[160px] px-4 py-3.5">
                         <p
@@ -353,7 +365,17 @@ export default async function BackofficePage({
                         {caso.tipologia}
                       </p>
                     </div>
-                    <StatusBadge estado={caso.estado} size="sm" />
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
+                      <StatusBadge estado={caso.estado} size="sm" />
+                      <SlaCountdown
+                        compact
+                        createdAt={caso.created_at}
+                        slaDeadline={caso.sla_deadline}
+                        primeraRespuestaAt={caso.primera_respuesta_at}
+                        estado={caso.estado}
+                        updatedAt={caso.updated_at}
+                      />
+                    </div>
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400">
                     <span className="inline-flex items-center gap-1">

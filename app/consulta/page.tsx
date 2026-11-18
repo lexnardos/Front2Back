@@ -11,6 +11,7 @@ import {
   IconTicket,
 } from "@/components/icons";
 import { PublicHeader } from "@/components/public-header";
+import { SlaCountdown } from "@/components/sla-countdown";
 import { StatusBadge } from "@/components/status-badge";
 import { Timeline } from "@/components/timeline";
 import { WorkspaceHeader } from "@/components/workspace-header";
@@ -269,6 +270,16 @@ export default async function ConsultaPage({
                 </div>
               </dl>
 
+              <div className="border-t border-slate-100 px-5 py-4 sm:px-6">
+                <SlaCountdown
+                  createdAt={consulta.caso.created_at}
+                  slaDeadline={consulta.caso.sla_deadline}
+                  primeraRespuestaAt={consulta.caso.primera_respuesta_at}
+                  estado={consulta.caso.estado}
+                  updatedAt={consulta.caso.updated_at}
+                />
+              </div>
+
               <div className="border-t border-slate-100 bg-slate-50/70 px-5 py-4 sm:px-6">
                 <p className="flex items-start gap-2 text-xs leading-5 text-slate-500">
                   <IconFileText className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
@@ -307,10 +318,18 @@ export default async function ConsultaPage({
                       <dt className="text-[10px] uppercase tracking-wider text-slate-400">
                         Estado actual
                       </dt>
-                      <dd className="mt-1">
+                      <dd className="mt-1 flex flex-wrap items-center gap-1.5">
                         <StatusBadge
                           estado={consulta.caso.estado}
                           size="sm"
+                        />
+                        <SlaCountdown
+                          compact
+                          createdAt={consulta.caso.created_at}
+                          slaDeadline={consulta.caso.sla_deadline}
+                          primeraRespuestaAt={consulta.caso.primera_respuesta_at}
+                          estado={consulta.caso.estado}
+                          updatedAt={consulta.caso.updated_at}
                         />
                       </dd>
                     </div>
