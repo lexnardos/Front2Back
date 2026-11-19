@@ -158,6 +158,7 @@ export const TIPOS_NOTIFICACION = [
   "caso_radicado",
   "caso_actualizado",
   "caso_devuelto",
+  "nuevo_escalamiento",
   "subsanacion_reenviada",
 ] as const;
 
@@ -165,9 +166,11 @@ export type TipoNotificacion = (typeof TIPOS_NOTIFICACION)[number];
 
 export interface Notificacion {
   id: string;
+  usuario_id?: string;
   caso_id: string;
   numero_radicado: string;
-  tipo: TipoNotificacion;
+  tipo: TipoNotificacion | string;
+  target_role?: "backoffice" | "agente" | string | null;
   titulo: string;
   mensaje: string;
   leida: boolean;

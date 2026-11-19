@@ -33,7 +33,7 @@ export async function NotificationBell({ rol }: NotificationBellProps) {
       supabase
         .from("notificaciones")
         .select(
-          "id, caso_id, numero_radicado, tipo, titulo, mensaje, leida, created_at",
+          "id, caso_id, numero_radicado, tipo, target_role, titulo, mensaje, leida, created_at",
         )
         .eq("usuario_id", user.id)
         .order("created_at", { ascending: false })

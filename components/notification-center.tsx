@@ -115,13 +115,19 @@ export function NotificationCenter({
     unread: noLeidasIniciales,
   });
   const [abierto, setAbierto] = useState(false);
+  const [resaltadoId, setResaltadoId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const contenedorRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLElement>(null);
+  const audioRef = useRef<AudioContext | null>(null);
+  const resaltadoTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
-    const filtro = `usuario_id=eq.${userId}`;
+
+    const esParaMi = (item: Notificacion) =>
+      item.usuario_id === userId ||
+      (rol === "backoffice" && item.target_role === "backoffice");
 
     const canal = supabase
       .channel(`f2b-notificaciones-${userId}`)
@@ -131,10 +137,19 @@ export function NotificationCenter({
           event: "INSERT",
           schema: "public",
           table: "notificaciones",
-          filter: filtro,
         },
         (payload) => {
-          dispatch({ type: "insert", item: payload.new as Notificacion });
+          const item = payload.new as Notificacion;
+          if (!esParaMi(item)) return;
+          dispatch({ type: "insert", item });
+          if (
+            rol === "backoffice" &&
+            (item.tipo === "nuevo_escalamiento" ||
+              item.tipo === "subsanacion_reenviada")
+          ) {
+            reproducirSonido();
+            resaltar(item.id);
+          }
         },
       )
       .on(
@@ -143,10 +158,12 @@ export function NotificationCenter({
           event: "UPDATE",
           schema: "public",
           table: "notificaciones",
-          filter: filtro,
         },
         (payload) => {
-          dispatch({ type: "update", item: payload.new as Notificacion });
+          const item = payload.new as Notificacion;
+          if (esParaMi(item)) {
+            dispatch({ type: "update", item });
+          }
         },
       )
       .subscribe();
@@ -154,7 +171,7 @@ export function NotificationCenter({
     return () => {
       void supabase.removeChannel(canal);
     };
-  }, [userId]);
+  }, [userId, rol]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -165,7 +182,7 @@ export function NotificationCenter({
         supabase
           .from("notificaciones")
           .select(
-            "id, caso_id, numero_radicado, tipo, titulo, mensaje, leida, created_at",
+            "id, usuario_id, caso_id, numero_radicado, tipo, target_role, titulo, mensaje, leida, created_at",
           )
           .eq("usuario_id", userId)
           .order("created_at", { ascending: false })
@@ -235,6 +252,53 @@ export function NotificationCenter({
     });
   }
 
+  function reproducirSonido() {
+    try {
+      if (typeof window === "undefined") return;
+      const AudioCtor =
+        window.AudioContext ??
+        (window as unknown as { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext;
+      if (!AudioCtor) return;
+      audioRef.current ??= new AudioCtor();
+      const ctx = audioRef.current;
+      if (ctx.state === "suspended") void ctx.resume();
+      const oscilador = ctx.createOscillator();
+      const volumen = ctx.createGain();
+      oscilador.type = "sine";
+      oscilador.frequency.setValueAtTime(880, ctx.currentTime);
+      oscilador.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.12);
+      volumen.gain.setValueAtTime(0.0001, ctx.currentTime);
+      volumen.gain.exponentialRampToValueAtTime(0.08, ctx.currentTime + 0.02);
+      volumen.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
+      oscilador.connect(volumen);
+      volumen.connect(ctx.destination);
+      oscilador.start();
+      oscilador.stop(ctx.currentTime + 0.24);
+    } catch {
+      return;
+    }
+  }
+
+  function resaltar(id: string) {
+    setResaltadoId(id);
+    if (resaltadoTimerRef.current !== null) {
+      window.clearTimeout(resaltadoTimerRef.current);
+    }
+    resaltadoTimerRef.current = window.setTimeout(() => setResaltadoId(null), 4000);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (resaltadoTimerRef.current !== null) {
+        window.clearTimeout(resaltadoTimerRef.current);
+      }
+      if (audioRef.current) {
+        void audioRef.current.close();
+      }
+    };
+  }, []);
+
   return (
     <div ref={contenedorRef} className="relative">
       <button
@@ -248,6 +312,7 @@ export function NotificationCenter({
           abierto
             ? "border-brand-200 bg-brand-50 text-brand-700"
             : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900",
+          resaltadoId && "animate-pulse ring-2 ring-rose-400 ring-offset-2",
         )}
       >
         <IconBell className="h-[18px] w-[18px]" />
@@ -340,9 +405,13 @@ export function NotificationCenter({
                         }}
                         className={cn(
                           "flex gap-3 border-l-2 px-4 py-3.5 transition hover:bg-slate-50",
-                          notificacion.tipo === "caso_devuelto"
+                          notificacion.tipo === "caso_devuelto" ||
+                          notificacion.tipo === "nuevo_escalamiento" ||
+                          notificacion.tipo === "subsanacion_reenviada"
                             ? "border-l-rose-500 bg-rose-50/50 hover:bg-rose-50"
                             : "border-l-transparent",
+                          resaltadoId === notificacion.id &&
+                            "bg-rose-100 ring-2 ring-inset ring-rose-300",
                           !notificacion.leida &&
                             notificacion.tipo !== "caso_devuelto" &&
                             "bg-brand-50/40",
@@ -350,10 +419,12 @@ export function NotificationCenter({
                       >
                         <span
                           className={cn(
-                            "mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg",
-                            notificacion.tipo === "caso_devuelto"
-                              ? "bg-rose-100 text-rose-700"
-                              : notificacion.tipo === "caso_radicado"
+                             "mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg",
+                             notificacion.tipo === "caso_devuelto" ||
+                             notificacion.tipo === "nuevo_escalamiento" ||
+                             notificacion.tipo === "subsanacion_reenviada"
+                               ? "bg-rose-100 text-rose-700"
+                               : notificacion.tipo === "caso_radicado"
                                 ? "bg-brand-100 text-brand-700"
                                 : "bg-sky-100 text-sky-700",
                           )}
@@ -365,8 +436,10 @@ export function NotificationCenter({
                             <span
                                 className={cn(
                                   "text-xs leading-5",
-                                  notificacion.tipo === "caso_devuelto"
-                                    ? "font-semibold text-rose-700"
+                                   notificacion.tipo === "caso_devuelto" ||
+                                   notificacion.tipo === "nuevo_escalamiento" ||
+                                   notificacion.tipo === "subsanacion_reenviada"
+                                     ? "font-semibold text-rose-700"
                                     : notificacion.leida
                                       ? "font-medium text-slate-600"
                                       : "font-semibold text-slate-900",
@@ -379,8 +452,10 @@ export function NotificationCenter({
                                 aria-label="Sin leer"
                                 className={cn(
                                   "mt-1 h-2 w-2 shrink-0 rounded-full",
-                                  notificacion.tipo === "caso_devuelto"
-                                    ? "bg-rose-500"
+                                   notificacion.tipo === "caso_devuelto" ||
+                                   notificacion.tipo === "nuevo_escalamiento" ||
+                                   notificacion.tipo === "subsanacion_reenviada"
+                                     ? "bg-rose-500"
                                     : "bg-brand-500",
                                 )}
                               />
