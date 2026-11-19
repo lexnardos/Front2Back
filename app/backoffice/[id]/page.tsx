@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { BackofficeUpdateForm } from "@/components/backoffice-update-form";
+import { BackofficeActionsPanel } from "@/components/backoffice-actions-panel";
 import { CopyButton } from "@/components/copy-button";
 import { DatosPlantilla } from "@/components/datos-plantilla";
-import { DevolucionForm } from "@/components/devolucion-form";
 import { EvidenceGallery } from "@/components/evidence-gallery";
 import {
   IconArrowRight,
@@ -49,7 +48,7 @@ export default async function CasoDetallePage({ params }: CasoPageProps) {
     notFound();
   }
 
-  const { supabase } = await getSessionContext();
+  const { supabase, user } = await getSessionContext();
 
   const casoRes = await supabase
     .from("casos_escalamiento")
@@ -316,15 +315,11 @@ export default async function CasoDetallePage({ params }: CasoPageProps) {
             pausado={pausado}
           />
 
-          <BackofficeUpdateForm
-            casoId={caso.id}
-            estadoActual={caso.estado}
-            pasoActual={caso.paso_actual}
-            asignadoA={caso.asignado_a}
+          <BackofficeActionsPanel
+            casoInicial={caso}
+            usuarioId={user?.id ?? ""}
             analistas={analistas}
           />
-
-          <DevolucionForm casoId={caso.id} />
 
           <div className="rounded-2xl border border-slate-200 bg-slate-100/60 p-5">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { CallbackScheduler } from "@/components/callback-scheduler";
 import { CopyButton } from "@/components/copy-button";
 import { EvidenceGallery } from "@/components/evidence-gallery";
 import { GlobalSearch } from "@/components/global-search";
@@ -93,6 +94,9 @@ export default async function ConsultaPage({
   const evidencias = (consulta?.caso.evidencias ?? []) as Evidencia[];
   const pausado =
     consulta?.caso.estado === "Devuelto" || Boolean(consulta?.caso.sla_pausado_desde);
+  const casoResuelto =
+    consulta?.caso.estado === "Completado" ||
+    consulta?.caso.estado === "Rechazado";
   const puedeSubsanar =
     consulta?.caso.estado === "Devuelto" &&
     Boolean(perfil) &&
@@ -108,6 +112,7 @@ export default async function ConsultaPage({
           rol={perfil.rol}
           avatarUrl={perfil.avatar_url}
           active="consulta"
+          usuarioId={perfil.id}
         />
       ) : (
         <PublicHeader />
@@ -418,6 +423,15 @@ export default async function ConsultaPage({
                     </div>
                   </dl>
                 </div>
+
+                {casoResuelto && consulta && perfil ? (
+                  <CallbackScheduler
+                    casoId={consulta.caso.id}
+                    callbacks={consulta.callbacks ?? []}
+                    usuarioId={perfil.id}
+                    radicado={consulta.caso.numero_radicado}
+                  />
+                ) : null}
 
                 {puedeSubsanar ? (
                   <ReenvioForm

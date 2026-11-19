@@ -25,6 +25,7 @@ interface BackofficeUpdateFormProps {
   pasoActual: string;
   asignadoA: string | null;
   analistas: Analista[];
+  bloqueadoPor?: string | null;
 }
 
 export function BackofficeUpdateForm({
@@ -33,6 +34,7 @@ export function BackofficeUpdateForm({
   pasoActual,
   asignadoA,
   analistas,
+  bloqueadoPor,
 }: BackofficeUpdateFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -119,6 +121,16 @@ export function BackofficeUpdateForm({
           </div>
         ) : null}
 
+        {bloqueadoPor ? (
+          <div
+            role="status"
+            className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs leading-5 text-amber-800"
+          >
+            Este caso está en gestión por <span className="font-semibold">{bloqueadoPor}</span>.
+            Libéralo o espera a que quede disponible para responder.
+          </div>
+        ) : null}
+
         <div>
           <label htmlFor="estado" className="field-label">
             Estado del caso
@@ -201,7 +213,7 @@ export function BackofficeUpdateForm({
 
         <button
           type="submit"
-          disabled={isPending}
+          disabled={isPending || Boolean(bloqueadoPor)}
           className={cn("btn-primary w-full")}
         >
           {isPending ? (

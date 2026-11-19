@@ -93,3 +93,122 @@ export async function reenviarCaso(
       "Caso corregido y reenviado al Backoffice. El SLA fue reanudado.",
   };
 }
+
+export async function programarRecontacto(
+  formData: FormData,
+): Promise<ActualizarCasoState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { ok: false, error: "Inicia sesión para programar el recontacto." };
+  }
+
+  const casoId = String(formData.get("caso_id") ?? "");
+  const fechaRaw = String(formData.get("programado_para") ?? "").trim();
+  const notas = String(formData.get("notas") ?? "").trim();
+
+  if (!isUuid(casoId)) {
+    return { ok: false, error: "El caso no es válido." };
+  }
+
+  const fecha = new Date(fechaRaw);
+  if (!fechaRaw || Number.isNaN(fecha.getTime())) {
+    return { ok: false, error: "Selecciona una fecha y hora válidas." };
+  }
+
+  if (notas.length > 1000) {
+    return { ok: false, error: "Las notas no pueden superar los 1000 caracteres." };
+  }
+
+  const { error } = await supabase.rpc("programar_callback", {
+    p_caso_id: casoId,
+    p_programado_para: fecha.toISOString(),
+    p_notas: notas || null,
+  });
+
+  if (error) {
+    console.error("Error al programar el recontacto:", error.message);
+    return {
+      ok: false,
+      error:
+        process.env.NODE_ENV === "production"
+          ? "No fue posible programar el recontacto. Inténtalo nuevamente."
+          : error.message,
+    };
+  }
+
+  revalidatePath("/consulta");
+  revalidatePath("/backoffice");
+  revalidatePath(`/backoffice/${casoId}`);
+  return { ok: true, message: "Recontacto programado y notificación enviada." };
+}
+
+export async function completarRecontacto(
+  formData: FormData,
+): Promise<ActualizarCasoState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { ok: false, error: "Inicia sesión para registrar el recontacto." };
+  }
+
+  const callbackId = String(formData.get("callback_id") ?? "");
+  if (!isUuid(callbackId)) {
+    return { ok: false, error: "El recordatorio no es válido." };
+  }
+
+  const { error } = await supabase.rpc("completar_callback", {
+    p_callback_id: callbackId,
+  });
+
+  if (error) {
+    console.error("Error al completar el recontacto:", error.message);
+    return { ok: false, error: error.message };
+  }
+
+  revalidatePath("/consulta");
+  revalidatePath("/backoffice");
+  return { ok: true, message: "Recontacto marcado como realizado." };
+}
+
+export async function posponerRecontacto(
+  formData: FormData,
+): Promise<ActualizarCasoState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { ok: false, error: "Inicia sesión para posponer el recontacto." };
+  }
+
+  const callbackId = String(formData.get("callback_id") ?? "");
+  const minutos = Number(formData.get("minutos") ?? 15);
+
+  if (!isUuid(callbackId)) {
+    return { ok: false, error: "El recordatorio no es válido." };
+  }
+  if (!Number.isFinite(minutos) || minutos < 5 || minutos > 1440) {
+    return { ok: false, error: "El tiempo de posposición no es válido." };
+  }
+
+  const { error } = await supabase.rpc("posponer_callback", {
+    p_callback_id: callbackId,
+    p_minutos: Math.round(minutos),
+  });
+
+  if (error) {
+    console.error("Error al posponer el recontacto:", error.message);
+    return { ok: false, error: error.message };
+  }
+
+  revalidatePath("/consulta");
+  return { ok: true, message: `Recontacto pospuesto ${Math.round(minutos)} minutos.` };
+}

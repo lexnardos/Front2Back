@@ -11,8 +11,14 @@ import {
 import { CopyButton } from "@/components/copy-button";
 import { EvidenceUploader } from "@/components/evidence-uploader";
 import { guardarEvidencias } from "@/app/backoffice/actions";
+import {
+  buscarDuplicados,
+  crearCaso,
+  obtenerDetalleDuplicado,
+} from "@/app/escalamiento/actions";
 import { subirEvidencia } from "@/lib/evidencias";
 import {
+  IconAlert,
   IconArrowRight,
   IconCheck,
   IconClock,
@@ -20,15 +26,24 @@ import {
   IconSearch,
   IconShield,
   IconTicket,
+  IconX,
 } from "@/components/icons";
+import { StatusBadge } from "@/components/status-badge";
 import {
   CATEGORIAS,
   PLANTILLAS,
   generarTextoPlantilla,
+  type CampoPlantilla,
   type DatosPlantilla,
 } from "@/lib/plantillas";
-import type { CrearCasoState, Evidencia } from "@/lib/types";
-import { crearCaso } from "@/app/escalamiento/actions";
+import type {
+  CasoDuplicado,
+  ConsultaRadicado,
+  CrearCasoState,
+  EstadoCaso,
+  Evidencia,
+} from "@/lib/types";
+import { etiquetaEstado } from "@/lib/types";
 import { cn, formatDateTime } from "@/lib/utils";
 
 const initialState: CrearCasoState = { ok: false };
@@ -52,6 +67,17 @@ function datosDesdeFormulario(
   return datos;
 }
 
+function esCampoIdentificador(campo: CampoPlantilla): boolean {
+  return /cuenta|min|cedula|documento|identificacion/i.test(
+    `${campo.name} ${campo.label}`,
+  );
+}
+
+function tieneLongitudSuficiente(valor: string): boolean {
+  const limpio = valor.replace(/[^0-9A-Za-z]/g, "");
+  return limpio.length >= 4;
+}
+
 export function EscalamientoForm() {
   const [tipologia, setTipologia] = useState(tipologiaInicial);
   const [state, setState] = useState<CrearCasoState>(initialState);
@@ -61,6 +87,14 @@ export function EscalamientoForm() {
   const [isPending, startTransition] = useTransition();
   const [archivos, setArchivos] = useState<File[]>([]);
   const [evidenciaError, setEvidenciaError] = useState<string | null>(null);
+  const [duplicados, setDuplicados] = useState<Record<string, CasoDuplicado[]>>({});
+  const [confirmados, setConfirmados] = useState<Record<string, boolean>>({});
+  const [verificando, setVerificando] = useState<Record<string, boolean>>({});
+  const [detalleDuplicado, setDetalleDuplicado] =
+    useState<ConsultaRadicado | null>(null);
+  const [campoDuplicado, setCampoDuplicado] = useState<string | null>(null);
+  const [cargandoDetalle, setCargandoDetalle] = useState(false);
+  const temporizadores = useRef<Record<string, number>>({});
   const formRef = useRef<HTMLFormElement>(null);
   const radicadoExitoso = state.ok ? state.radicado : undefined;
 
@@ -94,8 +128,67 @@ export function EscalamientoForm() {
     };
   }, [radicadoExitoso]);
 
+  useEffect(() => {
+    const timers = temporizadores.current;
+    return () => {
+      Object.values(timers).forEach((timer) => window.clearTimeout(timer));
+    };
+  }, []);
+
+  async function verificarCampo(nombre: string, valor: string) {
+    if (!tieneLongitudSuficiente(valor)) {
+      setDuplicados((actual) => ({ ...actual, [nombre]: [] }));
+      setConfirmados((actual) => ({ ...actual, [nombre]: false }));
+      return;
+    }
+
+    setVerificando((actual) => ({ ...actual, [nombre]: true }));
+    try {
+      const resultados = await buscarDuplicados(valor.trim());
+      setDuplicados((actual) => ({ ...actual, [nombre]: resultados }));
+      setConfirmados((actual) => ({ ...actual, [nombre]: false }));
+    } catch {
+      setDuplicados((actual) => ({ ...actual, [nombre]: [] }));
+    } finally {
+      setVerificando((actual) => ({ ...actual, [nombre]: false }));
+    }
+  }
+
+  function programarVerificacion(nombre: string, valor: string) {
+    if (temporizadores.current[nombre]) {
+      window.clearTimeout(temporizadores.current[nombre]);
+    }
+    temporizadores.current[nombre] = window.setTimeout(() => {
+      void verificarCampo(nombre, valor);
+    }, 500);
+  }
+
+  async function abrirDetalle(campo: string, radicado: string) {
+    setCampoDuplicado(campo);
+    setCargandoDetalle(true);
+    try {
+      setDetalleDuplicado(await obtenerDetalleDuplicado(radicado));
+    } catch {
+      setDetalleDuplicado(null);
+    } finally {
+      setCargandoDetalle(false);
+    }
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const pendienteConfirmar = Object.entries(duplicados).some(
+      ([campo, resultados]) => resultados.length > 0 && !confirmados[campo],
+    );
+    if (pendienteConfirmar) {
+      setState({
+        ok: false,
+        error:
+          "Existe un caso activo similar. Confirma que se trata de un motivo o tipificación distinto para continuar.",
+      });
+      return;
+    }
+
     const formData = new FormData(event.currentTarget);
     setState(initialState);
     setEvidenciaError(null);
@@ -179,6 +272,9 @@ export function EscalamientoForm() {
               const nuevaTipologia = event.target.value;
               setTipologia(nuevaTipologia);
               setState(initialState);
+              setDuplicados({});
+              setConfirmados({});
+              setDetalleDuplicado(null);
               setPreview(generarTextoPlantilla(nuevaTipologia, {}));
             }}
             className="field-select"
@@ -220,6 +316,8 @@ export function EscalamientoForm() {
           {plantilla?.campos.map((campo) => {
             const fieldId = `campo_${campo.name}`;
             const error = state.fieldErrors?.[campo.name];
+            const identificador = esCampoIdentificador(campo);
+            const coincidencias = duplicados[campo.name] ?? [];
 
             return (
               <div
@@ -256,6 +354,13 @@ export function EscalamientoForm() {
                     required={campo.required}
                     defaultValue=""
                     className="field-select"
+                    onBlur={
+                      identificador
+                        ? (event) => {
+                            void verificarCampo(campo.name, event.currentTarget.value);
+                          }
+                        : undefined
+                    }
                   >
                     <option value="" disabled>
                       Selecciona una opción
@@ -278,6 +383,20 @@ export function EscalamientoForm() {
                     min={campo.type === "number" ? "0" : undefined}
                     inputMode={campo.type === "number" ? "decimal" : undefined}
                     className="field-input"
+                    onBlur={
+                      identificador
+                        ? (event) => {
+                            void verificarCampo(campo.name, event.currentTarget.value);
+                          }
+                        : undefined
+                    }
+                    onChange={
+                      identificador
+                        ? (event) => {
+                            programarVerificacion(campo.name, event.currentTarget.value);
+                          }
+                        : undefined
+                    }
                   />
                 )}
 
@@ -287,6 +406,54 @@ export function EscalamientoForm() {
                   </p>
                 ) : campo.help ? (
                   <p className="mt-1.5 text-xs text-slate-400">{campo.help}</p>
+                ) : null}
+
+                {verificando[campo.name] ? (
+                  <p className="mt-1.5 text-[11px] text-slate-400">
+                    Verificando casos activos...
+                  </p>
+                ) : null}
+
+                {coincidencias.length > 0 ? (
+                  <div
+                    role="alert"
+                    className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5"
+                  >
+                    <p className="flex items-start gap-2 text-xs font-medium leading-5 text-amber-900">
+                      <IconAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                      <span>
+                        Ya existe un caso activo (#{coincidencias[0].numero_radicado}) para este
+                        cliente/cuenta en estado {etiquetaEstado(coincidencias[0].estado)},
+                        creado el {formatDateTime(coincidencias[0].created_at)} por{" "}
+                        {coincidencias[0].creado_por}.
+                      </span>
+                    </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-3 pl-6">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void abrirDetalle(campo.name, coincidencias[0].numero_radicado);
+                        }}
+                        className="text-[11px] font-semibold text-amber-900 underline underline-offset-2 hover:text-amber-700"
+                      >
+                        Ver estado del caso actual
+                      </button>
+                      <label className="flex items-center gap-1.5 text-[11px] font-medium text-amber-900">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(confirmados[campo.name])}
+                          onChange={(event) => {
+                            setConfirmados((actual) => ({
+                              ...actual,
+                              [campo.name]: event.target.checked,
+                            }));
+                          }}
+                          className="h-3.5 w-3.5 accent-amber-600"
+                        />
+                        Es un motivo/tipificación distinto
+                      </label>
+                    </div>
+                  </div>
                 ) : null}
               </div>
             );
@@ -369,6 +536,144 @@ export function EscalamientoForm() {
         </div>
       </form>
       </div>
+
+      {detalleDuplicado || cargandoDetalle ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="duplicado-title"
+            className="animate-fade-up max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-amber-200 bg-white shadow-soft sm:rounded-2xl"
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-amber-100 bg-amber-50 px-5 py-4">
+              <div className="flex items-start gap-2.5">
+                <IconAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                <div>
+                  <h2 id="duplicado-title" className="text-sm font-semibold text-amber-900">
+                    Caso activo del cliente
+                  </h2>
+                  <p className="mt-0.5 text-xs text-amber-800/80">
+                    Revisa el avance antes de radicar un escalamiento duplicado.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setDetalleDuplicado(null);
+                  setCampoDuplicado(null);
+                }}
+                aria-label="Cerrar detalle del caso"
+                className="rounded-lg p-1 text-amber-700 transition hover:bg-amber-100"
+              >
+                <IconX className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="px-5 py-5">
+              {cargandoDetalle ? (
+                <p className="text-xs text-slate-500">Cargando detalle del radicado...</p>
+              ) : detalleDuplicado ? (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-sm font-semibold text-brand-700">
+                      {detalleDuplicado.caso.numero_radicado}
+                    </span>
+                    <StatusBadge
+                      estado={detalleDuplicado.caso.estado as EstadoCaso}
+                      size="sm"
+                      mostrarEtiquetaOperativa
+                    />
+                  </div>
+
+                  <dl className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <dt className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                        Tipificación
+                      </dt>
+                      <dd className="mt-1 text-xs font-medium text-slate-700">
+                        {detalleDuplicado.caso.tipologia}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                        Radicado por
+                      </dt>
+                      <dd className="mt-1 text-xs font-medium text-slate-700">
+                        {detalleDuplicado.caso.creado_por}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                        Creado
+                      </dt>
+                      <dd className="mt-1 text-xs font-medium text-slate-700">
+                        {formatDateTime(detalleDuplicado.caso.created_at)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                        Paso actual
+                      </dt>
+                      <dd className="mt-1 text-xs font-medium text-slate-700">
+                        {detalleDuplicado.caso.paso_actual}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      Últimos movimientos
+                    </p>
+                    <ul className="mt-2 space-y-2">
+                      {detalleDuplicado.historial.slice(-4).reverse().map((item) => (
+                        <li key={item.id} className="text-[11px] leading-4 text-slate-600">
+                          <span className="font-semibold text-slate-800">
+                            {etiquetaEstado(item.estado_nuevo)}
+                          </span>{" "}
+                          · {item.paso_registrado ?? item.accion ?? "Movimiento registrado"}
+                          {item.comentario ? ` · ${item.comentario}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500">
+                  No fue posible cargar el detalle del radicado.
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 px-5 py-4 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setDetalleDuplicado(null);
+                  setCampoDuplicado(null);
+                }}
+                className="btn-secondary"
+              >
+                Cerrar
+              </button>
+              <button
+                type="button"
+                disabled={!detalleDuplicado || !campoDuplicado}
+                onClick={() => {
+                  if (campoDuplicado) {
+                    setConfirmados((actual) => ({ ...actual, [campoDuplicado]: true }));
+                  }
+                  setDetalleDuplicado(null);
+                  setCampoDuplicado(null);
+                }}
+                className="btn-primary"
+              >
+                Continuar con nuevo caso
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {radicadoExitoso ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4">

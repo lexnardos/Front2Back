@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getPlantilla } from "@/lib/plantillas";
 import type {
+  CasoDuplicado,
   CasoEscalamiento,
+  ConsultaRadicado,
   CrearCasoState,
 } from "@/lib/types";
 
@@ -156,4 +158,55 @@ export async function crearCaso(
     radicado: caso.numero_radicado,
     slaDeadline: caso.sla_deadline ?? undefined,
   };
+}
+
+export async function buscarDuplicados(
+  valor: string,
+): Promise<CasoDuplicado[]> {
+  const normalizado = valor.trim();
+  if (normalizado.replace(/[^0-9A-Za-z]/g, "").length < 4) {
+    return [];
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return [];
+
+  const { data, error } = await supabase.rpc("buscar_casos_duplicados", {
+    p_valor: normalizado,
+    p_excluir_id: null,
+  });
+
+  if (error) {
+    console.error("Error al buscar duplicados:", error.message);
+    return [];
+  }
+
+  return (data ?? []) as unknown as CasoDuplicado[];
+}
+
+export async function obtenerDetalleDuplicado(
+  radicado: string,
+): Promise<ConsultaRadicado | null> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user || !radicado.trim()) return null;
+
+  const { data, error } = await supabase.rpc("consultar_radicado", {
+    p_radicado: radicado.trim(),
+  });
+
+  if (error) {
+    console.error("Error al consultar el caso duplicado:", error.message);
+    return null;
+  }
+
+  const raw = data as unknown as ConsultaRadicado | null;
+  return raw && raw.caso ? raw : null;
 }

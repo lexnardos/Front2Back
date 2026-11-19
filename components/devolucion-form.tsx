@@ -7,7 +7,13 @@ import { devolverCaso } from "@/app/backoffice/actions";
 import { CAUSALES_DEVOLUCION, type ActualizarCasoState } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-export function DevolucionForm({ casoId }: { casoId: string }) {
+export function DevolucionForm({
+  casoId,
+  bloqueadoPor,
+}: {
+  casoId: string;
+  bloqueadoPor?: string | null;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [state, setState] = useState<ActualizarCasoState | null>(null);
@@ -64,6 +70,12 @@ export function DevolucionForm({ casoId }: { casoId: string }) {
           </p>
         ) : null}
 
+        {bloqueadoPor ? (
+          <p role="status" className="rounded-lg bg-amber-100 px-3 py-2 text-xs leading-5 text-amber-800">
+            Bloqueado por {bloqueadoPor}. Libera o reasigna el caso antes de devolverlo.
+          </p>
+        ) : null}
+
         <div>
           <label htmlFor="causal" className="field-label text-rose-900">
             Causal de devolución
@@ -95,7 +107,11 @@ export function DevolucionForm({ casoId }: { casoId: string }) {
           />
         </div>
 
-        <button type="submit" disabled={isPending} className={cn("btn-primary w-full bg-rose-600 hover:bg-rose-700")}>
+        <button
+          type="submit"
+          disabled={isPending || Boolean(bloqueadoPor)}
+          className={cn("btn-primary w-full bg-rose-600 hover:bg-rose-700")}
+        >
           {isPending ? "Devolviendo…" : "Devolver al Frontoffice"}
         </button>
       </form>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Brand } from "@/components/brand";
+import { CallbackReminder } from "@/components/callback-reminder";
 import { IconLogout, IconUser } from "@/components/icons";
 import { NotificationBell } from "@/components/notification-bell";
 import { ProfileDialog } from "@/components/profile-dialog";
@@ -15,6 +16,7 @@ interface WorkspaceHeaderProps {
   rol: RolUsuario;
   avatarUrl: string | null;
   active: ActiveSection;
+  usuarioId?: string;
 }
 
 export function WorkspaceHeader({
@@ -23,6 +25,7 @@ export function WorkspaceHeader({
   rol,
   avatarUrl,
   active,
+  usuarioId,
 }: WorkspaceHeaderProps) {
   const links: Array<{ href: string; label: string; key: ActiveSection }> = [];
 
@@ -109,6 +112,7 @@ export function WorkspaceHeader({
           ))}
         </nav>
       </div>
+      {usuarioId ? <CallbackReminder usuarioId={usuarioId} /> : null}
     </header>
   );
 }

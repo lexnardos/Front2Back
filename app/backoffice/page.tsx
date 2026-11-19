@@ -1,15 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import {
-  IconArrowRight,
-  IconClock,
-  IconDashboard,
-  IconInbox,
-  IconUser,
-} from "@/components/icons";
+import { IconArrowRight, IconDashboard, IconInbox } from "@/components/icons";
+import { BackofficeBoard } from "@/components/backoffice-board";
 import { GlobalSearch } from "@/components/global-search";
-import { SlaCountdown } from "@/components/sla-countdown";
-import { StatusBadge } from "@/components/status-badge";
 import { getSessionContext } from "@/lib/auth";
 import {
   ESTADOS_CASO,
@@ -17,12 +10,7 @@ import {
   type CasoEscalamiento,
   type EstadoCaso,
 } from "@/lib/types";
-import {
-  cn,
-  formatDateOnly,
-  sanitizeSearchTerm,
-  truncate,
-} from "@/lib/utils";
+import { cn, sanitizeSearchTerm } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Bandeja Backoffice",
@@ -60,7 +48,7 @@ function hrefConFiltro(estado: FiltroEstado, q: string): string {
 }
 
 const SELECT_CASOS =
-  "id, numero_radicado, tipologia, estado, paso_actual, creado_por, asignado_a, created_at, updated_at, sla_deadline, primera_respuesta_at, sla_pausado_desde, asignado:usuarios!casos_escalamiento_asignado_a_fkey(nombre_completo)";
+  "id, numero_radicado, tipologia, estado, paso_actual, creado_por, asignado_a, assigned_to_id, assigned_to_name, locked_at, created_at, updated_at, sla_deadline, primera_respuesta_at, sla_pausado_desde, asignado:usuarios!casos_escalamiento_asignado_a_fkey(nombre_completo)";
 
 const SELECT_CASOS_LEGADO =
   "id, numero_radicado, tipologia, estado, paso_actual, creado_por, asignado_a, created_at, updated_at, asignado:usuarios!casos_escalamiento_asignado_a_fkey(nombre_completo)";
@@ -72,7 +60,7 @@ export default async function BackofficePage({
   const filtro: FiltroEstado =
     estadoParam && esFiltroValido(estadoParam) ? estadoParam : "activos";
   const q = sanitizeSearchTerm(qParam ?? "");
-  const { supabase } = await getSessionContext();
+  const { supabase, user } = await getSessionContext();
 
   let casos: CasoEscalamiento[] = [];
   let aviso: string | null = null;
@@ -167,6 +155,17 @@ export default async function BackofficePage({
     conteoPorEstado.set(estado, (conteoPorEstado.get(estado) ?? 0) + 1);
   });
   if (conteosError && !aviso) aviso = conteosError.message;
+
+  const { data: analistasData } = await supabase
+    .from("usuarios")
+    .select("id, nombre_completo")
+    .eq("rol", "backoffice")
+    .order("nombre_completo");
+  const analistas =
+    (analistasData as unknown as Array<{
+      id: string;
+      nombre_completo: string;
+    }>) ?? [];
 
   const stats = [
     { estado: "Pendiente" as const, label: "Abiertos", className: "border-amber-200/70 bg-amber-50/70 text-amber-700" },
@@ -286,139 +285,11 @@ export default async function BackofficePage({
             </div>
           </div>
         ) : (
-          <>
-            <div className="hidden overflow-x-auto md:block">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50/80 text-[10px] uppercase tracking-wider text-slate-500">
-                  <tr>
-                    <th className="px-5 py-3 font-semibold">Radicado</th>
-                    <th className="px-4 py-3 font-semibold">Tipología</th>
-                    <th className="px-4 py-3 font-semibold">Creado por</th>
-                    <th className="px-4 py-3 font-semibold">Asignado</th>
-                    <th className="px-4 py-3 font-semibold">Estado</th>
-                    <th className="px-4 py-3 font-semibold">SLA</th>
-                    <th className="px-4 py-3 font-semibold">Paso actual</th>
-                    <th className="px-4 py-3 font-semibold">Fecha</th>
-                    <th className="px-4 py-3" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {casos.map((caso) => (
-                    <tr key={caso.id} className="group transition hover:bg-slate-50/70">
-                      <td className="whitespace-nowrap px-5 py-3.5">
-                        <Link
-                          href={`/backoffice/${caso.id}`}
-                          className="font-mono text-xs font-semibold text-brand-700 hover:text-brand-800"
-                        >
-                          {caso.numero_radicado}
-                        </Link>
-                      </td>
-                      <td className="max-w-[180px] px-4 py-3.5">
-                        <p className="truncate text-xs font-medium text-slate-700">
-                          {caso.tipologia}
-                        </p>
-                      </td>
-                      <td className="max-w-[150px] px-4 py-3.5">
-                        <p className="truncate text-xs text-slate-500">{caso.creado_por}</p>
-                      </td>
-                      <td className="max-w-[150px] px-4 py-3.5">
-                        <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
-                          <IconUser className="h-3.5 w-3.5 text-slate-400" />
-                          <span className="truncate">
-                            {caso.asignado?.nombre_completo ?? "Sin asignar"}
-                          </span>
-                        </span>
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3.5">
-                        <StatusBadge estado={caso.estado} size="sm" mostrarEtiquetaOperativa />
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3.5">
-                        <SlaCountdown
-                          compact
-                          createdAt={caso.created_at}
-                          slaDeadline={caso.sla_deadline}
-                          primeraRespuestaAt={caso.primera_respuesta_at}
-                          estado={caso.estado}
-                          updatedAt={caso.updated_at}
-                          pausado={caso.estado === "Devuelto" || Boolean(caso.sla_pausado_desde)}
-                        />
-                      </td>
-                      <td className="max-w-[160px] px-4 py-3.5">
-                        <p className="truncate text-xs text-slate-500" title={caso.paso_actual}>
-                          {truncate(caso.paso_actual, 32)}
-                        </p>
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3.5">
-                        <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
-                          <IconClock className="h-3.5 w-3.5" />
-                          {formatDateOnly(caso.created_at)}
-                        </span>
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3.5 text-right">
-                        <Link
-                          href={`/backoffice/${caso.id}`}
-                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold text-slate-500 transition group-hover:bg-white group-hover:text-brand-700"
-                        >
-                          Gestionar
-                          <IconArrowRight className="h-3.5 w-3.5" />
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="divide-y divide-slate-100 md:hidden">
-              {casos.map((caso) => (
-                <Link
-                  key={caso.id}
-                  href={`/backoffice/${caso.id}`}
-                  className="block px-4 py-4 transition hover:bg-slate-50"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-mono text-xs font-semibold text-brand-700">
-                        {caso.numero_radicado}
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-slate-800">
-                        {caso.tipologia}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 flex-col items-end gap-1.5">
-                      <StatusBadge
-                        estado={caso.estado}
-                        size="sm"
-                        mostrarEtiquetaOperativa
-                      />
-                      <SlaCountdown
-                        compact
-                        createdAt={caso.created_at}
-                        slaDeadline={caso.sla_deadline}
-                        primeraRespuestaAt={caso.primera_respuesta_at}
-                        estado={caso.estado}
-                        updatedAt={caso.updated_at}
-                        pausado={caso.estado === "Devuelto" || Boolean(caso.sla_pausado_desde)}
-                      />
-                    </div>
-                  </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400">
-                    <span className="inline-flex items-center gap-1">
-                      <IconUser className="h-3.5 w-3.5" />
-                      {caso.creado_por}
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <IconClock className="h-3.5 w-3.5" />
-                      {formatDateOnly(caso.created_at)}
-                    </span>
-                  </div>
-                  <p className="mt-2 truncate text-xs text-slate-500">
-                    Paso: {caso.paso_actual}
-                  </p>
-                </Link>
-              ))}
-            </div>
-          </>
+          <BackofficeBoard
+            casosIniciales={casos}
+            usuarioId={user?.id ?? ""}
+            analistas={analistas}
+          />
         )}
       </div>
     </div>

@@ -187,6 +187,121 @@ export async function devolverCaso(
   };
 }
 
+async function contextoBackoffice() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      supabase,
+      user: null,
+      error: "Tu sesión expiró. Inicia sesión nuevamente para continuar.",
+    };
+  }
+
+  const { data: perfil } = await supabase
+    .from("usuarios")
+    .select("rol")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (!perfil || (perfil as { rol: string }).rol !== "backoffice") {
+    return {
+      supabase,
+      user,
+      error: "Solo los analistas de Backoffice pueden gestionar casos.",
+    };
+  }
+
+  return { supabase, user, error: null };
+}
+
+function mensajeLock(error: string): string {
+  return error;
+}
+
+export async function tomarCaso(formData: FormData): Promise<ActualizarCasoState> {
+  const contexto = await contextoBackoffice();
+  if (contexto.error) return { ok: false, error: contexto.error };
+
+  const casoId = String(formData.get("caso_id") ?? "");
+  if (!isUuid(casoId)) {
+    return { ok: false, error: "El caso no es válido." };
+  }
+
+  const { error } = await contexto.supabase.rpc("tomar_caso_lock", {
+    p_caso_id: casoId,
+  });
+
+  if (error) {
+    console.error("Error al tomar el caso:", error.message);
+    return {
+      ok: false,
+      error: mensajeLock(error.message),
+    };
+  }
+
+  revalidatePath("/backoffice");
+  revalidatePath(`/backoffice/${casoId}`);
+  return { ok: true, message: "Caso tomado. Quedó en gestión para ti." };
+}
+
+export async function liberarCaso(formData: FormData): Promise<ActualizarCasoState> {
+  const contexto = await contextoBackoffice();
+  if (contexto.error) return { ok: false, error: contexto.error };
+
+  const casoId = String(formData.get("caso_id") ?? "");
+  if (!isUuid(casoId)) {
+    return { ok: false, error: "El caso no es válido." };
+  }
+
+  const { error } = await contexto.supabase.rpc("liberar_caso_lock", {
+    p_caso_id: casoId,
+  });
+
+  if (error) {
+    console.error("Error al liberar el caso:", error.message);
+    return { ok: false, error: mensajeLock(error.message) };
+  }
+
+  revalidatePath("/backoffice");
+  revalidatePath(`/backoffice/${casoId}`);
+  return { ok: true, message: "Caso liberado y disponible para otro analista." };
+}
+
+export async function reasignarCaso(
+  formData: FormData,
+): Promise<ActualizarCasoState> {
+  const contexto = await contextoBackoffice();
+  if (contexto.error) return { ok: false, error: contexto.error };
+
+  const casoId = String(formData.get("caso_id") ?? "");
+  const usuarioId = String(formData.get("usuario_id") ?? "").trim();
+
+  if (!isUuid(casoId)) {
+    return { ok: false, error: "El caso no es válido." };
+  }
+  if (!isUuid(usuarioId)) {
+    return { ok: false, error: "Selecciona un analista válido." };
+  }
+
+  const { error } = await contexto.supabase.rpc("reasignar_caso_lock", {
+    p_caso_id: casoId,
+    p_usuario_id: usuarioId,
+  });
+
+  if (error) {
+    console.error("Error al reasignar el caso:", error.message);
+    return { ok: false, error: mensajeLock(error.message) };
+  }
+
+  revalidatePath("/backoffice");
+  revalidatePath(`/backoffice/${casoId}`);
+  return { ok: true, message: "Caso reasignado correctamente." };
+}
+
 function esEvidenciaValida(valor: unknown): valor is Evidencia {
   if (!valor || typeof valor !== "object") return false;
   const item = valor as Partial<Evidencia>;

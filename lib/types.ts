@@ -63,6 +63,9 @@ export interface CasoEscalamiento {
   creado_por: string;
   creado_por_id: string | null;
   asignado_a: string | null;
+  assigned_to_id?: string | null;
+  assigned_to_name?: string | null;
+  locked_at?: string | null;
   created_at: string;
   updated_at: string;
   sla_deadline?: string | null;
@@ -135,6 +138,7 @@ export interface MovimientoConsulta {
 export interface ConsultaRadicado {
   caso: CasoConsulta;
   historial: MovimientoConsulta[];
+  callbacks?: Callback[];
 }
 
 export interface CasoBusqueda {
@@ -144,6 +148,29 @@ export interface CasoBusqueda {
   estado: EstadoCaso;
   creado_por: string;
   created_at: string;
+}
+
+export interface CasoDuplicado {
+  id: string;
+  numero_radicado: string;
+  tipologia: string;
+  estado: string;
+  paso_actual: string;
+  creado_por: string;
+  created_at: string;
+  campo_coincidente?: string;
+  valor_coincidente?: string;
+}
+
+export interface Callback {
+  id: string;
+  caso_id?: string;
+  programado_para: string;
+  estado: "pendiente" | "pospuesto" | "completado" | "cancelado" | string;
+  notas: string | null;
+  creado_en?: string;
+  completado_en?: string | null;
+  caso?: { numero_radicado: string; tipologia: string } | null;
 }
 
 export interface CrearCasoState {
@@ -160,6 +187,7 @@ export const TIPOS_NOTIFICACION = [
   "caso_devuelto",
   "nuevo_escalamiento",
   "subsanacion_reenviada",
+  "recordatorio_recontacto",
 ] as const;
 
 export type TipoNotificacion = (typeof TIPOS_NOTIFICACION)[number];

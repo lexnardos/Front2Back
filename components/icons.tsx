@@ -96,6 +96,16 @@ export function IconLock(props: IconProps) {
   );
 }
 
+export function IconAlert(props: IconProps) {
+  return (
+    <svg {...baseProps(props)}>
+      <path d="M12 4.5 21 19H3l9-14.5Z" />
+      <path d="M12 9.5v4.5" />
+      <path d="M12 17h.01" />
+    </svg>
+  );
+}
+
 export function IconBell(props: IconProps) {
   return (
     <svg {...baseProps(props)}>
