@@ -1,36 +1,46 @@
 import { StatusBadge } from "@/components/status-badge";
-import type { EstadoCaso } from "@/lib/types";
-import { cn, formatDateTime } from "@/lib/utils";
+import { esEstadoFinal, etiquetaEstado, type EstadoCaso } from "@/lib/types";
+import { cn, formatearDuracion, formatDateTime } from "@/lib/utils";
 
 export interface TimelineMovimiento {
   id: string;
   estado_anterior: EstadoCaso | null;
   estado_nuevo: EstadoCaso;
-  paso_registrado: string;
+  paso_registrado?: string | null;
   comentario: string | null;
   fecha_movimiento: string;
   usuario?: string | { nombre_completo?: string | null } | null;
+  rol?: string | null;
+  accion?: string | null;
+  duracion_ms?: number | null;
 }
 
 const dotStyles: Record<EstadoCaso, string> = {
   Pendiente: "bg-amber-500 ring-amber-100",
   "En Proceso": "bg-sky-500 ring-sky-100",
   Completado: "bg-emerald-500 ring-emerald-100",
-  Rechazado: "bg-rose-500 ring-rose-100",
+  Rechazado: "bg-slate-500 ring-slate-100",
+  Devuelto: "bg-rose-500 ring-rose-100",
 };
 
-function nombreUsuario(
-  usuario: TimelineMovimiento["usuario"],
-): string | null {
-  if (!usuario) return null;
+function nombreUsuario(usuario: TimelineMovimiento["usuario"]): string {
+  if (!usuario) return "Sistema";
   if (typeof usuario === "string") return usuario;
-  return usuario.nombre_completo ?? null;
+  return usuario.nombre_completo ?? "Sistema";
+}
+
+function etiquetaRol(rol: string | null | undefined): string {
+  if (rol === "backoffice") return "Backoffice";
+  if (rol === "agente") return "Frontoffice";
+  return "Sistema";
 }
 
 export function Timeline({
   movimientos,
+  fechaCreacion,
 }: {
   movimientos: TimelineMovimiento[];
+  fechaCreacion?: string;
 }) {
   if (movimientos.length === 0) {
     return (
@@ -40,11 +50,27 @@ export function Timeline({
     );
   }
 
+  const inicio = fechaCreacion
+    ? new Date(fechaCreacion).getTime()
+    : new Date(movimientos[0].fecha_movimiento).getTime();
+
   return (
     <ol className="space-y-0">
       {movimientos.map((movimiento, index) => {
         const usuario = nombreUsuario(movimiento.usuario);
         const isLast = index === movimientos.length - 1;
+        const estado = (movimiento.estado_nuevo in dotStyles
+          ? movimiento.estado_nuevo
+          : "Pendiente") as EstadoCaso;
+        const fecha = new Date(movimiento.fecha_movimiento).getTime();
+        const transcurrido =
+          movimiento.duracion_ms ??
+          (Number.isFinite(fecha) && Number.isFinite(inicio)
+            ? Math.max(0, fecha - inicio)
+            : null);
+        const mostrarTiempo =
+          esEstadoFinal(estado) || (isLast && movimiento.duracion_ms !== null && movimiento.duracion_ms !== undefined);
+
         return (
           <li
             key={movimiento.id}
@@ -59,16 +85,16 @@ export function Timeline({
             <span
               className={cn(
                 "absolute left-0 top-1.5 h-3 w-3 rounded-full ring-4",
-                dotStyles[movimiento.estado_nuevo],
+                dotStyles[estado],
               )}
               aria-hidden
             />
             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <StatusBadge estado={movimiento.estado_nuevo} size="sm" />
+                  <StatusBadge estado={estado} size="sm" mostrarEtiquetaOperativa />
                   <span className="text-xs font-medium text-slate-500">
-                    {movimiento.paso_registrado}
+                    {movimiento.accion ?? "Actualización de gestión"}
                   </span>
                 </div>
                 <time
@@ -79,11 +105,21 @@ export function Timeline({
                 </time>
               </div>
 
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
+                <span className="font-medium text-slate-500">{usuario}</span>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold uppercase tracking-wide text-slate-500">
+                  {etiquetaRol(movimiento.rol)}
+                </span>
+                {movimiento.paso_registrado ? (
+                  <span>{movimiento.paso_registrado}</span>
+                ) : null}
+              </div>
+
               {movimiento.estado_anterior &&
               movimiento.estado_anterior !== movimiento.estado_nuevo ? (
                 <p className="mt-2 text-[11px] text-slate-400">
-                  Cambio de estado: {movimiento.estado_anterior} →{" "}
-                  {movimiento.estado_nuevo}
+                  Cambio de estado: {etiquetaEstado(movimiento.estado_anterior)} →{" "}
+                  {etiquetaEstado(movimiento.estado_nuevo)}
                 </p>
               ) : null}
 
@@ -93,9 +129,9 @@ export function Timeline({
                 </p>
               ) : null}
 
-              {usuario ? (
-                <p className="mt-2.5 text-[11px] font-medium text-slate-400">
-                  Registrado por {usuario}
+              {mostrarTiempo && transcurrido !== null ? (
+                <p className="mt-2.5 text-[11px] font-semibold text-brand-700">
+                  Tiempo total: {formatearDuracion(transcurrido)}
                 </p>
               ) : null}
             </div>

@@ -1,6 +1,11 @@
-import type { EstadoCaso } from "@/lib/types";
+import { esEstadoFinal, type EstadoCaso } from "@/lib/types";
 
-export type SlaTono = "en-tiempo" | "por-vencer" | "vencido" | "respondido";
+export type SlaTono =
+  | "en-tiempo"
+  | "por-vencer"
+  | "vencido"
+  | "respondido"
+  | "pausado";
 
 export interface SlaInfo {
   tono: SlaTono;
@@ -17,6 +22,7 @@ interface SlaParams {
   primeraRespuestaAt?: string | null;
   estado?: EstadoCaso;
   updatedAt?: string | null;
+  pausado?: boolean;
   ahora?: number;
 }
 
@@ -54,13 +60,25 @@ export function calcularSla({
   primeraRespuestaAt,
   estado,
   updatedAt,
+  pausado = false,
   ahora = Date.now(),
 }: SlaParams): SlaInfo {
   const inicio = milisegundos(createdAt);
   const limite = milisegundos(slaDeadline) ?? (inicio === null ? null : inicio + SLA_HORAS * HORA_MS);
   const respuesta = milisegundos(primeraRespuestaAt);
-  const cerrado = estado === "Completado" || estado === "Rechazado";
+  const cerrado = estado ? esEstadoFinal(estado) : false;
   const fin = respuesta ?? (cerrado ? milisegundos(updatedAt) : null);
+
+  if (pausado && !cerrado) {
+    return {
+      tono: "pausado",
+      etiqueta: "En pausa",
+      cronometro: "SLA pausado",
+      detalle: "El caso fue devuelto al Frontoffice. El contador se reanuda con la subsanación.",
+      enCurso: false,
+      progreso: 0,
+    };
+  }
 
   if (inicio !== null && fin !== null && fin >= inicio) {
     return {

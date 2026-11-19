@@ -3,9 +3,33 @@ export const ESTADOS_CASO = [
   "En Proceso",
   "Completado",
   "Rechazado",
+  "Devuelto",
 ] as const;
 
 export type EstadoCaso = (typeof ESTADOS_CASO)[number];
+
+export const ETIQUETAS_ESTADO: Record<EstadoCaso, string> = {
+  Pendiente: "Abierto",
+  "En Proceso": "En gestión",
+  Completado: "Resuelto",
+  Rechazado: "Cerrado",
+  Devuelto: "Devuelto",
+};
+
+export function etiquetaEstado(estado: string): string {
+  return ETIQUETAS_ESTADO[estado as EstadoCaso] ?? estado;
+}
+
+export function esEstadoFinal(estado: string): boolean {
+  return estado === "Completado" || estado === "Rechazado";
+}
+
+export const CAUSALES_DEVOLUCION = [
+  "Falta pantallazo/evidencia",
+  "Número de cuenta o MIN errado",
+  "No aplica escalamiento",
+  "Datos incompletos en plantilla",
+] as const;
 
 export const ROLES_USUARIO = ["backoffice", "agente"] as const;
 
@@ -20,6 +44,15 @@ export interface Usuario {
   created_at: string;
 }
 
+export interface Evidencia {
+  url: string;
+  path: string;
+  nombre: string;
+  tipo: string;
+  tamano: number;
+  subida_en: string;
+}
+
 export interface CasoEscalamiento {
   id: string;
   numero_radicado: string;
@@ -32,8 +65,12 @@ export interface CasoEscalamiento {
   asignado_a: string | null;
   created_at: string;
   updated_at: string;
-  sla_deadline: string | null;
-  primera_respuesta_at: string | null;
+  sla_deadline?: string | null;
+  primera_respuesta_at?: string | null;
+  sla_pausado_desde?: string | null;
+  causal_devolucion?: string | null;
+  observacion_devolucion?: string | null;
+  cerrado_en?: string | null;
   asignado?: Pick<Usuario, "id" | "nombre_completo" | "correo"> | null;
 }
 
@@ -49,6 +86,19 @@ export interface HistorialMovimiento {
   usuario?: Pick<Usuario, "id" | "nombre_completo" | "correo"> | null;
 }
 
+export interface RegistroAuditoria {
+  id: string;
+  fecha_movimiento: string;
+  usuario: string;
+  rol: "front" | "backoffice" | "sistema" | string;
+  accion: string;
+  estado_anterior: EstadoCaso | null;
+  estado_nuevo: EstadoCaso;
+  paso_registrado: string | null;
+  comentario: string | null;
+  duracion_ms: number | null;
+}
+
 export interface CasoConsulta {
   id: string;
   numero_radicado: string;
@@ -56,25 +106,44 @@ export interface CasoConsulta {
   estado: EstadoCaso;
   paso_actual: string;
   creado_por: string;
+  creado_por_id?: string | null;
   created_at: string;
   updated_at: string;
-  sla_deadline: string | null;
-  primera_respuesta_at: string | null;
+  sla_deadline?: string | null;
+  primera_respuesta_at?: string | null;
+  sla_pausado_desde?: string | null;
+  causal_devolucion?: string | null;
+  observacion_devolucion?: string | null;
+  cerrado_en?: string | null;
+  datos_plantilla?: Record<string, unknown>;
+  evidencias?: Evidencia[];
 }
 
 export interface MovimientoConsulta {
   id: string;
   estado_anterior: EstadoCaso | null;
   estado_nuevo: EstadoCaso;
-  paso_registrado: string;
-  comentario: string | null;
   fecha_movimiento: string;
   usuario: string;
+  rol?: string;
+  accion?: string;
+  paso_registrado?: string | null;
+  comentario: string | null;
+  duracion_ms?: number | null;
 }
 
 export interface ConsultaRadicado {
   caso: CasoConsulta;
   historial: MovimientoConsulta[];
+}
+
+export interface CasoBusqueda {
+  id: string;
+  numero_radicado: string;
+  tipologia: string;
+  estado: EstadoCaso;
+  creado_por: string;
+  created_at: string;
 }
 
 export interface CrearCasoState {
@@ -85,7 +154,12 @@ export interface CrearCasoState {
   fieldErrors?: Record<string, string>;
 }
 
-export const TIPOS_NOTIFICACION = ["caso_radicado", "caso_actualizado"] as const;
+export const TIPOS_NOTIFICACION = [
+  "caso_radicado",
+  "caso_actualizado",
+  "caso_devuelto",
+  "subsanacion_reenviada",
+] as const;
 
 export type TipoNotificacion = (typeof TIPOS_NOTIFICACION)[number];
 

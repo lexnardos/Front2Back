@@ -9,6 +9,8 @@ import {
 } from "@/components/icons";
 import { PASOS_SUGERIDOS } from "@/lib/plantillas";
 import { ESTADOS_CASO, type ActualizarCasoState } from "@/lib/types";
+
+const ESTADOS_EDITABLES = ESTADOS_CASO.filter((estado) => estado !== "Devuelto");
 import { actualizarCaso } from "@/app/backoffice/actions";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +37,27 @@ export function BackofficeUpdateForm({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [state, setState] = useState<ActualizarCasoState | null>(null);
+
+  if (estadoActual === "Devuelto") {
+    return (
+      <div className="card overflow-hidden">
+        <div className="flex items-start gap-3 border-b border-slate-100 px-5 py-5">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-rose-50 text-rose-700">
+            <IconFileText className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="text-sm font-semibold text-slate-950">
+              Esperando subsanación
+            </h2>
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              El caso está devuelto al Frontoffice. La gestión se reanuda cuando
+              el asesor corrija y reenvíe la solicitud.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -107,7 +130,7 @@ export function BackofficeUpdateForm({
             defaultValue={estadoActual}
             className="field-select"
           >
-            {ESTADOS_CASO.map((estado) => (
+            {ESTADOS_EDITABLES.map((estado) => (
               <option key={estado} value={estado}>
                 {estado}
               </option>

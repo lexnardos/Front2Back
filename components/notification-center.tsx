@@ -30,6 +30,7 @@ interface NotificationCenterProps {
   rol: RolUsuario;
   notificacionesIniciales: Notificacion[];
   noLeidasIniciales: number;
+  disponible?: boolean;
 }
 
 interface State {
@@ -40,6 +41,7 @@ interface State {
 type Action =
   | { type: "insert"; item: Notificacion }
   | { type: "update"; item: Notificacion }
+  | { type: "sincronizar"; items: Notificacion[]; unread: number }
   | { type: "marcar-uno"; id: string }
   | { type: "marcar-todas" };
 
@@ -64,6 +66,16 @@ function reducer(state: State, action: Action): State {
           0,
           state.unread + (action.item.leida ? -1 : 1),
         ),
+      };
+    }
+    case "sincronizar": {
+      const actuales = new Map(state.items.map((item) => [item.id, item]));
+      action.items.forEach((item) => actuales.set(item.id, item));
+      return {
+        items: Array.from(actuales.values())
+          .sort((a, b) => b.created_at.localeCompare(a.created_at))
+          .slice(0, 50),
+        unread: action.unread,
       };
     }
     case "marcar-uno": {
@@ -96,6 +108,7 @@ export function NotificationCenter({
   rol,
   notificacionesIniciales,
   noLeidasIniciales,
+  disponible = true,
 }: NotificationCenterProps) {
   const [state, dispatch] = useReducer(reducer, {
     items: notificacionesIniciales,
@@ -140,6 +153,45 @@ export function NotificationCenter({
 
     return () => {
       void supabase.removeChannel(canal);
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    let activo = true;
+
+    async function sincronizar() {
+      const [lista, conteo] = await Promise.all([
+        supabase
+          .from("notificaciones")
+          .select(
+            "id, caso_id, numero_radicado, tipo, titulo, mensaje, leida, created_at",
+          )
+          .eq("usuario_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(50),
+        supabase
+          .from("notificaciones")
+          .select("id", { count: "exact", head: true })
+          .eq("usuario_id", userId)
+          .eq("leida", false),
+      ]);
+      if (!activo || lista.error) return;
+      dispatch({
+        type: "sincronizar",
+        items: (lista.data ?? []) as unknown as Notificacion[],
+        unread: conteo.count ?? 0,
+      });
+    }
+
+    void sincronizar();
+    const intervalo = window.setInterval(sincronizar, 15000);
+    window.addEventListener("focus", sincronizar);
+
+    return () => {
+      activo = false;
+      window.clearInterval(intervalo);
+      window.removeEventListener("focus", sincronizar);
     };
   }, [userId]);
 
@@ -253,6 +305,13 @@ export function NotificationCenter({
               </div>
             </div>
 
+            {disponible ? null : (
+              <p className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-[11px] leading-4 text-amber-800">
+                El centro de notificaciones no está disponible. Aplica la
+                migración <code>migration_f2b_completa.sql</code> en Supabase.
+              </p>
+            )}
+
             <div className="flex-1 overflow-y-auto overscroll-contain">
               {state.items.length === 0 ? (
                 <div className="flex h-full flex-col items-center justify-center gap-3 px-6 py-12 text-center">
@@ -280,16 +339,23 @@ export function NotificationCenter({
                           setAbierto(false);
                         }}
                         className={cn(
-                          "flex gap-3 px-4 py-3.5 transition hover:bg-slate-50",
-                          !notificacion.leida && "bg-brand-50/40",
+                          "flex gap-3 border-l-2 px-4 py-3.5 transition hover:bg-slate-50",
+                          notificacion.tipo === "caso_devuelto"
+                            ? "border-l-rose-500 bg-rose-50/50 hover:bg-rose-50"
+                            : "border-l-transparent",
+                          !notificacion.leida &&
+                            notificacion.tipo !== "caso_devuelto" &&
+                            "bg-brand-50/40",
                         )}
                       >
                         <span
                           className={cn(
                             "mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg",
-                            notificacion.tipo === "caso_radicado"
-                              ? "bg-brand-100 text-brand-700"
-                              : "bg-sky-100 text-sky-700",
+                            notificacion.tipo === "caso_devuelto"
+                              ? "bg-rose-100 text-rose-700"
+                              : notificacion.tipo === "caso_radicado"
+                                ? "bg-brand-100 text-brand-700"
+                                : "bg-sky-100 text-sky-700",
                           )}
                         >
                           <IconTicket className="h-4 w-4" />
@@ -297,19 +363,26 @@ export function NotificationCenter({
                         <span className="min-w-0 flex-1">
                           <span className="flex items-start justify-between gap-2">
                             <span
-                              className={cn(
-                                "text-xs leading-5",
-                                notificacion.leida
-                                  ? "font-medium text-slate-600"
-                                  : "font-semibold text-slate-900",
-                              )}
+                                className={cn(
+                                  "text-xs leading-5",
+                                  notificacion.tipo === "caso_devuelto"
+                                    ? "font-semibold text-rose-700"
+                                    : notificacion.leida
+                                      ? "font-medium text-slate-600"
+                                      : "font-semibold text-slate-900",
+                                )}
                             >
                               {notificacion.titulo}
                             </span>
                             {!notificacion.leida ? (
                               <span
                                 aria-label="Sin leer"
-                                className="mt-1 h-2 w-2 shrink-0 rounded-full bg-brand-500"
+                                className={cn(
+                                  "mt-1 h-2 w-2 shrink-0 rounded-full",
+                                  notificacion.tipo === "caso_devuelto"
+                                    ? "bg-rose-500"
+                                    : "bg-brand-500",
+                                )}
                               />
                             ) : null}
                           </span>

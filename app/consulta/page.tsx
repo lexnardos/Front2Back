@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CopyButton } from "@/components/copy-button";
+import { EvidenceGallery } from "@/components/evidence-gallery";
+import { GlobalSearch } from "@/components/global-search";
+import { ReenvioForm } from "@/components/reenvio-form";
 import {
   IconArrowRight,
   IconCheck,
@@ -17,7 +20,7 @@ import { Timeline } from "@/components/timeline";
 import { WorkspaceHeader } from "@/components/workspace-header";
 import { getSessionContext } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import type { ConsultaRadicado, Usuario } from "@/lib/types";
+import type { ConsultaRadicado, Evidencia, Usuario } from "@/lib/types";
 import { cn, formatDateTime } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -31,13 +34,15 @@ export const dynamic = "force-dynamic";
 
 const estadoDescripcion: Record<string, string> = {
   Pendiente:
-    "El caso fue radicado y está en cola de revisión por parte de Backoffice.",
+    "El caso está abierto y en cola de revisión por parte de Backoffice.",
   "En Proceso":
-    "El equipo de Backoffice está validando la información o aplicando el ajuste.",
+    "El equipo de Backoffice está gestionando la información o aplicando el ajuste.",
   Completado:
     "La gestión terminó y la resolución fue registrada. Revisa las observaciones del historial.",
   Rechazado:
-    "El caso no pudo ser gestionado. Revisa el comentario de Backoffice para conocer el motivo.",
+    "El caso fue cerrado. Revisa el comentario de Backoffice para conocer el motivo.",
+  Devuelto:
+    "Backoffice devolvió el caso para subsanación. El SLA está en pausa hasta que corrijas y reenvíes la solicitud.",
 };
 
 interface ConsultaPageProps {
@@ -72,8 +77,9 @@ export default async function ConsultaPage({
       );
 
       if (rpcError) {
-        error =
-          "No fue posible consultar el radicado en este momento. Inténtalo nuevamente.";
+        error = /PGRST202|could not find the function/i.test(rpcError.message)
+          ? "La consulta avanzada no está disponible: aplica la migración migration_f2b_completa.sql en Supabase."
+          : "No fue posible consultar el radicado en este momento. Inténtalo nuevamente.";
       } else {
         const raw = data as unknown as ConsultaRadicado | null;
         consulta = raw && raw.caso ? raw : null;
@@ -83,6 +89,15 @@ export default async function ConsultaPage({
         "La conexión con Supabase no está configurada. Revisa las variables de entorno.";
     }
   }
+
+  const evidencias = (consulta?.caso.evidencias ?? []) as Evidencia[];
+  const pausado =
+    consulta?.caso.estado === "Devuelto" || Boolean(consulta?.caso.sla_pausado_desde);
+  const puedeSubsanar =
+    consulta?.caso.estado === "Devuelto" &&
+    Boolean(perfil) &&
+    (perfil?.rol === "backoffice" ||
+      perfil?.id === consulta?.caso.creado_por_id);
 
   return (
     <div className="min-h-screen">
@@ -144,6 +159,14 @@ export default async function ConsultaPage({
           <p className="mt-3 text-[11px] text-slate-400">
             El radicado tiene el formato ESC-AÑO-CONSECUTIVO.
           </p>
+
+          <div className="mx-auto mt-5 w-full max-w-xl">
+            <GlobalSearch modo="consulta" />
+            <p className="mt-1.5 text-[10px] text-slate-400">
+              Buscador instantáneo: cuenta/MIN, cédula, OT o radicado, nombre del
+              asesor. Disponible para usuarios autenticados.
+            </p>
+          </div>
         </div>
       </section>
 
@@ -234,7 +257,7 @@ export default async function ConsultaPage({
                   </p>
                 </div>
                 <div className="flex flex-col items-start gap-2 sm:items-end">
-                  <StatusBadge estado={consulta.caso.estado} />
+                  <StatusBadge estado={consulta.caso.estado} mostrarEtiquetaOperativa />
                   <CopyButton
                     value={consulta.caso.numero_radicado}
                     label="Copiar radicado"
@@ -277,6 +300,7 @@ export default async function ConsultaPage({
                   primeraRespuestaAt={consulta.caso.primera_respuesta_at}
                   estado={consulta.caso.estado}
                   updatedAt={consulta.caso.updated_at}
+                  pausado={pausado}
                 />
               </div>
 
@@ -286,27 +310,68 @@ export default async function ConsultaPage({
                   {estadoDescripcion[consulta.caso.estado]}
                 </p>
               </div>
+
+              {consulta.caso.estado === "Devuelto" ? (
+                <div className="border-t border-rose-100 bg-rose-50 px-5 py-4 sm:px-6">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-700">
+                    Subsanación solicitada · SLA en pausa
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-rose-900">
+                    {consulta.caso.causal_devolucion ?? "Causal no registrada"}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-rose-800">
+                    {consulta.caso.observacion_devolucion ??
+                      "Backoffice no registró una observación adicional."}
+                  </p>
+                </div>
+              ) : null}
             </div>
 
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
-              <section className="card">
-                <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
-                  <div>
-                    <h2 className="text-sm font-semibold text-slate-900">
-                      Línea de tiempo
-                    </h2>
-                    <p className="mt-0.5 text-xs text-slate-400">
-                      Movimientos y observaciones del caso.
-                    </p>
+              <div className="space-y-6">
+                {evidencias.length > 0 ? (
+                  <section className="card">
+                    <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
+                      <div>
+                        <h2 className="text-sm font-semibold text-slate-900">
+                          Evidencias del caso
+                        </h2>
+                        <p className="mt-0.5 text-xs text-slate-400">
+                          Haz clic en una imagen para ampliarla.
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-brand-700">
+                        {evidencias.length}
+                      </span>
+                    </div>
+                    <div className="px-5 py-5 sm:px-6">
+                      <EvidenceGallery evidencias={evidencias} />
+                    </div>
+                  </section>
+                ) : null}
+
+                <section className="card">
+                  <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
+                    <div>
+                      <h2 className="text-sm font-semibold text-slate-900">
+                        Línea de tiempo
+                      </h2>
+                      <p className="mt-0.5 text-xs text-slate-400">
+                        Movimientos y observaciones del caso.
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-brand-700">
+                      {consulta.historial.length}
+                    </span>
                   </div>
-                  <span className="rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-brand-700">
-                    {consulta.historial.length}
-                  </span>
-                </div>
-                <div className="px-5 py-5 sm:px-6">
-                  <Timeline movimientos={consulta.historial} />
-                </div>
-              </section>
+                  <div className="px-5 py-5 sm:px-6">
+                    <Timeline
+                      movimientos={consulta.historial}
+                      fechaCreacion={consulta.caso.created_at}
+                    />
+                  </div>
+                </section>
+              </div>
 
               <aside className="space-y-4">
                 <div className="card p-5">
@@ -322,6 +387,7 @@ export default async function ConsultaPage({
                         <StatusBadge
                           estado={consulta.caso.estado}
                           size="sm"
+                          mostrarEtiquetaOperativa
                         />
                         <SlaCountdown
                           compact
@@ -330,6 +396,7 @@ export default async function ConsultaPage({
                           primeraRespuestaAt={consulta.caso.primera_respuesta_at}
                           estado={consulta.caso.estado}
                           updatedAt={consulta.caso.updated_at}
+                          pausado={pausado}
                         />
                       </dd>
                     </div>
@@ -351,6 +418,16 @@ export default async function ConsultaPage({
                     </div>
                   </dl>
                 </div>
+
+                {puedeSubsanar ? (
+                  <ReenvioForm
+                    casoId={consulta.caso.id}
+                    radicado={consulta.caso.numero_radicado}
+                    tipologia={consulta.caso.tipologia}
+                    datos={consulta.caso.datos_plantilla ?? {}}
+                    evidencias={evidencias}
+                  />
+                ) : null}
 
                 <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/70 p-5">
                   <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-emerald-800">

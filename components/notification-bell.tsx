@@ -26,6 +26,7 @@ export async function NotificationBell({ rol }: NotificationBellProps) {
 
   let notificaciones: Notificacion[] = [];
   let noLeidas = 0;
+  let disponible = true;
 
   try {
     const [lista, conteo] = await Promise.all([
@@ -46,9 +47,11 @@ export async function NotificationBell({ rol }: NotificationBellProps) {
 
     notificaciones = (lista.data ?? []) as unknown as Notificacion[];
     noLeidas = conteo.count ?? 0;
+    disponible = !lista.error && !conteo.error;
   } catch {
     notificaciones = [];
     noLeidas = 0;
+    disponible = false;
   }
 
   return (
@@ -57,6 +60,7 @@ export async function NotificationBell({ rol }: NotificationBellProps) {
       rol={rol ?? perfil?.rol ?? "agente"}
       notificacionesIniciales={notificaciones}
       noLeidasIniciales={noLeidas}
+      disponible={disponible}
     />
   );
 }

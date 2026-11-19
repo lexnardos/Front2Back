@@ -27,6 +27,11 @@ const tonos: Record<SlaTono, { caja: string; barra: string; punto: string }> = {
     barra: "bg-brand-500",
     punto: "bg-brand-500",
   },
+  pausado: {
+    caja: "border-rose-200/80 bg-rose-50/80 text-rose-700",
+    barra: "bg-rose-400",
+    punto: "bg-rose-500",
+  },
 };
 
 interface SlaCountdownProps {
@@ -35,6 +40,7 @@ interface SlaCountdownProps {
   primeraRespuestaAt?: string | null;
   estado: EstadoCaso;
   updatedAt?: string | null;
+  pausado?: boolean;
   compact?: boolean;
   className?: string;
 }
@@ -45,6 +51,7 @@ export function SlaCountdown({
   primeraRespuestaAt,
   estado,
   updatedAt,
+  pausado = false,
   compact = false,
   className,
 }: SlaCountdownProps) {
@@ -59,13 +66,15 @@ export function SlaCountdown({
           primeraRespuestaAt,
           estado,
           updatedAt,
+          pausado,
         }),
       );
 
     actualizar();
+    if (pausado) return;
     const temporizador = window.setInterval(actualizar, 1000);
     return () => window.clearInterval(temporizador);
-  }, [createdAt, slaDeadline, primeraRespuestaAt, estado, updatedAt]);
+  }, [createdAt, slaDeadline, primeraRespuestaAt, estado, updatedAt, pausado]);
 
   const limiteTexto = slaDeadline
     ? `Límite: ${formatDateTime(slaDeadline)}`

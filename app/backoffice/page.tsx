@@ -3,22 +3,23 @@ import Link from "next/link";
 import {
   IconArrowRight,
   IconClock,
+  IconDashboard,
   IconInbox,
-  IconSearch,
   IconUser,
 } from "@/components/icons";
+import { GlobalSearch } from "@/components/global-search";
 import { SlaCountdown } from "@/components/sla-countdown";
 import { StatusBadge } from "@/components/status-badge";
 import { getSessionContext } from "@/lib/auth";
 import {
   ESTADOS_CASO,
+  type CasoBusqueda,
   type CasoEscalamiento,
   type EstadoCaso,
 } from "@/lib/types";
 import {
   cn,
   formatDateOnly,
-  formatDateTime,
   sanitizeSearchTerm,
   truncate,
 } from "@/lib/utils";
@@ -28,6 +29,8 @@ export const metadata: Metadata = {
   description: "Gestión de casos escalados desde Frontoffice.",
 };
 
+export const dynamic = "force-dynamic";
+
 interface BackofficePageProps {
   searchParams: Promise<{ estado?: string; q?: string }>;
 }
@@ -36,10 +39,11 @@ type FiltroEstado = EstadoCaso | "activos" | "todos";
 
 const filtros: Array<{ value: FiltroEstado; label: string }> = [
   { value: "activos", label: "Activos" },
-  { value: "Pendiente", label: "Pendientes" },
-  { value: "En Proceso", label: "En proceso" },
-  { value: "Completado", label: "Completados" },
-  { value: "Rechazado", label: "Rechazados" },
+  { value: "Pendiente", label: "Abiertos" },
+  { value: "En Proceso", label: "En gestión" },
+  { value: "Devuelto", label: "Devueltos" },
+  { value: "Completado", label: "Resueltos" },
+  { value: "Rechazado", label: "Cerrados" },
   { value: "todos", label: "Todos" },
 ];
 
@@ -55,6 +59,12 @@ function hrefConFiltro(estado: FiltroEstado, q: string): string {
   return query ? `/backoffice?${query}` : "/backoffice";
 }
 
+const SELECT_CASOS =
+  "id, numero_radicado, tipologia, estado, paso_actual, creado_por, asignado_a, created_at, updated_at, sla_deadline, primera_respuesta_at, sla_pausado_desde, asignado:usuarios!casos_escalamiento_asignado_a_fkey(nombre_completo)";
+
+const SELECT_CASOS_LEGADO =
+  "id, numero_radicado, tipologia, estado, paso_actual, creado_por, asignado_a, created_at, updated_at, asignado:usuarios!casos_escalamiento_asignado_a_fkey(nombre_completo)";
+
 export default async function BackofficePage({
   searchParams,
 }: BackofficePageProps) {
@@ -64,81 +74,110 @@ export default async function BackofficePage({
   const q = sanitizeSearchTerm(qParam ?? "");
   const { supabase } = await getSessionContext();
 
-  let casosQuery = supabase
+  let casos: CasoEscalamiento[] = [];
+  let aviso: string | null = null;
+
+  if (q.length >= 2) {
+    const { data, error } = await supabase.rpc("buscar_casos", {
+      p_termino: q,
+      p_limite: 100,
+    });
+    if (error) {
+      aviso =
+        "El buscador avanzado requiere la migración F2B. Usa la búsqueda por radicado mientras tanto.";
+    } else {
+      const encontrados = (data ?? []) as unknown as CasoBusqueda[];
+      const ids = encontrados
+        .filter((caso) => filtro === "todos" || (filtro === "activos" ? ["Pendiente", "En Proceso"].includes(caso.estado) : caso.estado === filtro))
+        .slice(0, 100)
+        .map((caso) => caso.id);
+
+      if (ids.length > 0) {
+        const detalle = await supabase
+          .from("casos_escalamiento")
+          .select(SELECT_CASOS)
+          .in("id", ids)
+          .order("created_at", { ascending: false });
+        if (!detalle.error) {
+          casos = (detalle.data ?? []) as unknown as CasoEscalamiento[];
+        } else {
+          const legado = await supabase
+            .from("casos_escalamiento")
+            .select(SELECT_CASOS_LEGADO)
+            .in("id", ids)
+            .order("created_at", { ascending: false });
+          casos = (legado.data ?? []) as unknown as CasoEscalamiento[];
+          aviso = "Faltan columnas de SLA. Aplica migration_f2b_completa.sql en Supabase.";
+        }
+      }
+    }
+  } else {
+    let consulta = supabase
+      .from("casos_escalamiento")
+      .select(SELECT_CASOS)
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    const filtroLocalDevuelto = filtro === "Devuelto";
+
+    if (filtro === "activos") {
+      consulta = consulta.in("estado", ["Pendiente", "En Proceso"]);
+    } else if (filtro !== "todos" && !filtroLocalDevuelto) {
+      consulta = consulta.eq("estado", filtro);
+    }
+
+    const respuesta = await consulta;
+    if (!respuesta.error) {
+      casos = (respuesta.data ?? []) as unknown as CasoEscalamiento[];
+    } else if (/sla_deadline|primera_respuesta_at|42703|PGRST205/.test(respuesta.error.message)) {
+      let consultaLegada = supabase
+        .from("casos_escalamiento")
+        .select(SELECT_CASOS_LEGADO)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (filtro === "activos") {
+        consultaLegada = consultaLegada.in("estado", ["Pendiente", "En Proceso"]);
+      } else if (filtro !== "todos" && !filtroLocalDevuelto) {
+        consultaLegada = consultaLegada.eq("estado", filtro);
+      }
+      const legado = await consultaLegada;
+      casos = (legado.data ?? []) as unknown as CasoEscalamiento[];
+      if (legado.error) aviso = legado.error.message;
+      else aviso = "Faltan columnas de SLA. Aplica migration_f2b_completa.sql en Supabase.";
+    } else {
+      aviso = respuesta.error.message;
+    }
+
+    if (filtroLocalDevuelto) {
+      casos = casos.filter((caso) => caso.estado === "Devuelto");
+      if (!aviso) {
+        aviso =
+          "El estado Devuelto requiere la migración F2B. Aplica migration_f2b_completa.sql en Supabase.";
+      }
+    }
+  }
+
+  const { data: conteosData, error: conteosError } = await supabase
     .from("casos_escalamiento")
-    .select(
-      "id, numero_radicado, tipologia, estado, paso_actual, creado_por, asignado_a, created_at, updated_at, sla_deadline, primera_respuesta_at, asignado:usuarios!casos_escalamiento_asignado_a_fkey(nombre_completo)",
-    )
-    .order("created_at", { ascending: false })
-    .limit(100);
-
-  if (filtro === "activos") {
-    casosQuery = casosQuery.in("estado", ["Pendiente", "En Proceso"]);
-  } else if (filtro !== "todos") {
-    casosQuery = casosQuery.eq("estado", filtro);
-  }
-
-  if (q) {
-    casosQuery = casosQuery.or(
-      `numero_radicado.ilike.%${q}%,tipologia.ilike.%${q}%,creado_por.ilike.%${q}%`,
-    );
-  }
-
-  const [casosRes, pendientesRes, procesoRes, completadosRes, rechazadosRes] =
-    await Promise.all([
-      casosQuery,
-      supabase
-        .from("casos_escalamiento")
-        .select("*", { count: "exact", head: true })
-        .eq("estado", "Pendiente"),
-      supabase
-        .from("casos_escalamiento")
-        .select("*", { count: "exact", head: true })
-        .eq("estado", "En Proceso"),
-      supabase
-        .from("casos_escalamiento")
-        .select("*", { count: "exact", head: true })
-        .eq("estado", "Completado"),
-      supabase
-        .from("casos_escalamiento")
-        .select("*", { count: "exact", head: true })
-        .eq("estado", "Rechazado"),
-    ]);
-
-  const casos = (casosRes.data ?? []) as unknown as CasoEscalamiento[];
-  const counts = {
-    Pendiente: pendientesRes.count ?? 0,
-    "En Proceso": procesoRes.count ?? 0,
-    Completado: completadosRes.count ?? 0,
-    Rechazado: rechazadosRes.count ?? 0,
-  };
+    .select("estado")
+    .limit(5000);
+  const conteoPorEstado = new Map<string, number>();
+  (conteosData ?? []).forEach((fila) => {
+    const estado = (fila as { estado?: string }).estado ?? "Desconocido";
+    conteoPorEstado.set(estado, (conteoPorEstado.get(estado) ?? 0) + 1);
+  });
+  if (conteosError && !aviso) aviso = conteosError.message;
 
   const stats = [
-    {
-      estado: "Pendiente" as const,
-      label: "Pendientes",
-      value: counts.Pendiente,
-      className: "border-amber-200/70 bg-amber-50/70 text-amber-700",
-    },
-    {
-      estado: "En Proceso" as const,
-      label: "En proceso",
-      value: counts["En Proceso"],
-      className: "border-sky-200/70 bg-sky-50/70 text-sky-700",
-    },
-    {
-      estado: "Completado" as const,
-      label: "Completados",
-      value: counts.Completado,
-      className: "border-emerald-200/70 bg-emerald-50/70 text-emerald-700",
-    },
-    {
-      estado: "Rechazado" as const,
-      label: "Rechazados",
-      value: counts.Rechazado,
-      className: "border-rose-200/70 bg-rose-50/70 text-rose-700",
-    },
-  ];
+    { estado: "Pendiente" as const, label: "Abiertos", className: "border-amber-200/70 bg-amber-50/70 text-amber-700" },
+    { estado: "En Proceso" as const, label: "En gestión", className: "border-sky-200/70 bg-sky-50/70 text-sky-700" },
+    { estado: "Devuelto" as const, label: "Devueltos", className: "border-rose-200/70 bg-rose-50/70 text-rose-700" },
+    { estado: "Completado" as const, label: "Resueltos", className: "border-emerald-200/70 bg-emerald-50/70 text-emerald-700" },
+    { estado: "Rechazado" as const, label: "Cerrados", className: "border-slate-200/70 bg-slate-50 text-slate-700" },
+  ].map((stat) => ({
+    ...stat,
+    value: conteoPorEstado.get(stat.estado) ?? 0,
+  }));
 
   return (
     <div>
@@ -151,26 +190,31 @@ export default async function BackofficePage({
             Bandeja de escalamientos
           </h1>
           <p className="mt-2 text-sm leading-6 text-slate-500">
-            Casos activos para validar, asignar y resolver.
+            Casos activos para validar, asignar, devolver y resolver.
           </p>
         </div>
-        <Link href="/escalamiento" className="btn-secondary">
-          Crear escalamiento
-          <IconArrowRight className="h-4 w-4 text-slate-400" />
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href="/backoffice/metricas" className="btn-secondary">
+            <IconDashboard className="h-4 w-4 text-slate-500" />
+            Métricas y reportes
+          </Link>
+          <Link href="/escalamiento" className="btn-secondary">
+            Crear escalamiento
+            <IconArrowRight className="h-4 w-4 text-slate-400" />
+          </Link>
+        </div>
       </div>
 
-      {casosRes.error ? (
+      {aviso ? (
         <div
           role="alert"
-          className="mt-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+          className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800"
         >
-          No fue posible cargar la bandeja. Recarga la página o revisa la
-          conexión con Supabase.
+          {aviso}
         </div>
       ) : null}
 
-      <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {stats.map((stat) => (
           <Link
             key={stat.estado}
@@ -210,36 +254,19 @@ export default async function BackofficePage({
             ))}
           </div>
 
-          <form
-            action="/backoffice"
-            method="get"
-            className="flex items-center gap-2"
-          >
-            {filtro !== "activos" ? (
-              <input type="hidden" name="estado" value={filtro} />
-            ) : null}
-            <div className="relative">
-              <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                type="search"
-                name="q"
-                defaultValue={q}
-                placeholder="Buscar radicado, tipología o agente"
-                className="field-input mt-0 w-full py-2 pl-9 pr-3 text-xs lg:w-72"
-              />
+          <div className="flex items-center gap-2">
+            <div className="w-full lg:w-80">
+              <GlobalSearch modo="backoffice" valorInicial={q} estado={filtro} />
             </div>
-            <button type="submit" className="btn-secondary px-3 py-2 text-xs">
-              Buscar
-            </button>
             {q ? (
               <Link
                 href={hrefConFiltro(filtro, "")}
-                className="text-xs font-medium text-slate-400 hover:text-slate-600"
+                className="shrink-0 text-xs font-medium text-slate-400 hover:text-slate-600"
               >
                 Limpiar
               </Link>
             ) : null}
-          </form>
+          </div>
         </div>
 
         {casos.length === 0 ? (
@@ -277,10 +304,7 @@ export default async function BackofficePage({
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {casos.map((caso) => (
-                    <tr
-                      key={caso.id}
-                      className="group transition hover:bg-slate-50/70"
-                    >
+                    <tr key={caso.id} className="group transition hover:bg-slate-50/70">
                       <td className="whitespace-nowrap px-5 py-3.5">
                         <Link
                           href={`/backoffice/${caso.id}`}
@@ -295,9 +319,7 @@ export default async function BackofficePage({
                         </p>
                       </td>
                       <td className="max-w-[150px] px-4 py-3.5">
-                        <p className="truncate text-xs text-slate-500">
-                          {caso.creado_por}
-                        </p>
+                        <p className="truncate text-xs text-slate-500">{caso.creado_por}</p>
                       </td>
                       <td className="max-w-[150px] px-4 py-3.5">
                         <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
@@ -308,7 +330,7 @@ export default async function BackofficePage({
                         </span>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3.5">
-                        <StatusBadge estado={caso.estado} size="sm" />
+                        <StatusBadge estado={caso.estado} size="sm" mostrarEtiquetaOperativa />
                       </td>
                       <td className="whitespace-nowrap px-4 py-3.5">
                         <SlaCountdown
@@ -318,13 +340,11 @@ export default async function BackofficePage({
                           primeraRespuestaAt={caso.primera_respuesta_at}
                           estado={caso.estado}
                           updatedAt={caso.updated_at}
+                          pausado={caso.estado === "Devuelto" || Boolean(caso.sla_pausado_desde)}
                         />
                       </td>
                       <td className="max-w-[160px] px-4 py-3.5">
-                        <p
-                          className="truncate text-xs text-slate-500"
-                          title={caso.paso_actual}
-                        >
+                        <p className="truncate text-xs text-slate-500" title={caso.paso_actual}>
                           {truncate(caso.paso_actual, 32)}
                         </p>
                       </td>
@@ -366,7 +386,11 @@ export default async function BackofficePage({
                       </p>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1.5">
-                      <StatusBadge estado={caso.estado} size="sm" />
+                      <StatusBadge
+                        estado={caso.estado}
+                        size="sm"
+                        mostrarEtiquetaOperativa
+                      />
                       <SlaCountdown
                         compact
                         createdAt={caso.created_at}
@@ -374,6 +398,7 @@ export default async function BackofficePage({
                         primeraRespuestaAt={caso.primera_respuesta_at}
                         estado={caso.estado}
                         updatedAt={caso.updated_at}
+                        pausado={caso.estado === "Devuelto" || Boolean(caso.sla_pausado_desde)}
                       />
                     </div>
                   </div>
@@ -384,7 +409,7 @@ export default async function BackofficePage({
                     </span>
                     <span className="inline-flex items-center gap-1">
                       <IconClock className="h-3.5 w-3.5" />
-                      {formatDateTime(caso.created_at)}
+                      {formatDateOnly(caso.created_at)}
                     </span>
                   </div>
                   <p className="mt-2 truncate text-xs text-slate-500">

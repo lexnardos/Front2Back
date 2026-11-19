@@ -9,6 +9,9 @@ import {
   type FormEvent,
 } from "react";
 import { CopyButton } from "@/components/copy-button";
+import { EvidenceUploader } from "@/components/evidence-uploader";
+import { guardarEvidencias } from "@/app/backoffice/actions";
+import { subirEvidencia } from "@/lib/evidencias";
 import {
   IconArrowRight,
   IconCheck,
@@ -24,7 +27,7 @@ import {
   generarTextoPlantilla,
   type DatosPlantilla,
 } from "@/lib/plantillas";
-import type { CrearCasoState } from "@/lib/types";
+import type { CrearCasoState, Evidencia } from "@/lib/types";
 import { crearCaso } from "@/app/escalamiento/actions";
 import { cn, formatDateTime } from "@/lib/utils";
 
@@ -56,6 +59,8 @@ export function EscalamientoForm() {
     generarTextoPlantilla(tipologiaInicial, {}),
   );
   const [isPending, startTransition] = useTransition();
+  const [archivos, setArchivos] = useState<File[]>([]);
+  const [evidenciaError, setEvidenciaError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const radicadoExitoso = state.ok ? state.radicado : undefined;
 
@@ -74,6 +79,8 @@ export function EscalamientoForm() {
     formRef.current?.reset();
     setState(initialState);
     setPreview(generarTextoPlantilla(tipologia, {}));
+    setArchivos([]);
+    setEvidenciaError(null);
   }
 
   useEffect(() => {
@@ -91,10 +98,31 @@ export function EscalamientoForm() {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     setState(initialState);
+    setEvidenciaError(null);
 
     startTransition(async () => {
       try {
         const result = await crearCaso(formData);
+        if (result.ok && result.radicado && archivos.length > 0) {
+          try {
+            const evidencias: Evidencia[] = [];
+            for (const archivo of archivos) {
+              evidencias.push(await subirEvidencia(result.radicado, archivo));
+            }
+            const guardado = await guardarEvidencias(result.radicado, evidencias);
+            if (!guardado.ok) {
+              setEvidenciaError(
+                guardado.error ?? "No fue posible registrar las evidencias del caso.",
+              );
+            }
+          } catch (err) {
+            setEvidenciaError(
+              err instanceof Error
+                ? err.message
+                : "No fue posible adjuntar las evidencias. El caso sí fue radicado.",
+            );
+          }
+        }
         setState(result);
       } catch {
         setState({
@@ -263,6 +291,24 @@ export function EscalamientoForm() {
               </div>
             );
           })}
+        </div>
+
+        <div className="mt-7">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Evidencias del caso (opcional)
+          </h3>
+          <p className="mt-1 text-[11px] leading-4 text-slate-400">
+            Puedes adjuntar capturas antes de radicar; se subirán al bucket por radicado
+            una vez creado el caso.
+          </p>
+          <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+            <EvidenceUploader onArchivosChange={setArchivos} disabled={isPending} />
+          </div>
+          {evidenciaError ? (
+            <p role="alert" className="mt-2 text-xs font-medium text-rose-600">
+              {evidenciaError}
+            </p>
+          ) : null}
         </div>
 
         {plantilla ? (

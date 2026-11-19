@@ -51,3 +51,50 @@ export function isUuid(value: string): boolean {
     value,
   );
 }
+
+export function formatearDuracion(milisegundos: number | null | undefined): string {
+  if (milisegundos === null || milisegundos === undefined || !Number.isFinite(milisegundos)) {
+    return "—";
+  }
+  const total = Math.max(0, Math.floor(milisegundos / 60000));
+  const horas = Math.floor(total / 60);
+  const minutos = total % 60;
+  if (horas >= 24) {
+    const dias = Math.floor(horas / 24);
+    return `${dias}d ${horas % 24}h ${String(minutos).padStart(2, "0")}m`;
+  }
+  return `${horas}h ${String(minutos).padStart(2, "0")}m`;
+}
+
+export function normalizarBusqueda(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "")
+    .slice(0, 80);
+}
+
+export function escapeCsv(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  const texto = String(value).replace(/\r?\n/g, " ").trim();
+  return `"${texto.replace(/"/g, '""')}"`;
+}
+
+export function valorPlantilla(
+  datos: Record<string, unknown> | null | undefined,
+  ...claves: string[]
+): string {
+  if (!datos) return "";
+  for (const clave of claves) {
+    const valor = datos[clave];
+    if (typeof valor === "string" && valor.trim()) return valor.trim();
+    if (typeof valor === "number" && Number.isFinite(valor)) return String(valor);
+  }
+  return "";
+}
+
+export function evidenciasDe(datos: Record<string, unknown> | null | undefined): unknown[] {
+  const valor = datos?.evidencias;
+  return Array.isArray(valor) ? valor : [];
+}
