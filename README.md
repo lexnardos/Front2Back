@@ -84,16 +84,18 @@ npm install
 ## 2. Configurar Supabase
 
 1. Crea un proyecto en Supabase.
-2. Abre **SQL Editor** y ejecuta completo el archivo [`schema.sql`](./schema.sql).
-   - Crea tipos, tablas, índices, triggers, funciones RPC y políticas RLS.
-   - La generación del radicado es atómica y consecutiva por año.
-   - Incluye SLA de 72 horas, notificaciones y Realtime.
-   - Si tu proyecto ya tenía ejecutado el esquema anterior, ejecuta además
-     [`migration_sla_notificaciones.sql`](./migration_sla_notificaciones.sql) en el SQL Editor.
- 3. En **Authentication → Users**, crea los usuarios con correo y contraseña.
+2. Abre **SQL Editor** y ejecuta completos, **en este orden**:
+
+   1. [`schema.sql`](./schema.sql) — tipos, tablas base, triggers y RLS.
+   2. [`migration_f2b_completa.sql`](./migration_f2b_completa.sql) — columnas de SLA/devolución/cierre, `ticket_historial`, bucket `evidencias-casos` y RPC de devolución/reenvío/evidencias.
+   3. [`migration_control_operativo.sql`](./migration_control_operativo.sql) — `assigned_to_id`, `locked_at`, tabla `callbacks`, bloqueos y recordatorios.
+
+   Los tres son idempotentes. **No** ejecutes `migration_sla_notificaciones.sql` ni `migration_notificaciones_realtime.sql` después: son versiones anteriores que sobrescriben funciones más recientes.
+3. Ejecuta [`verificar_bd.sql`](./verificar_bd.sql) en el mismo SQL Editor. Todas las filas deben mostrar `OK` y la última `BASE DE DATOS OK`. Si aparece `FALTA`, vuelve a ejecutar los archivos del paso 2.
+4. En **Authentication → Users**, crea los usuarios con correo y contraseña.
    - El trigger `handle_new_user` crea automáticamente el perfil en `public.usuarios` con rol `agente`.
    - Usa el campo de metadata `nombre_completo` al crear el usuario para asignar el nombre visible.
-4. Promueve a los analistas de Backoffice:
+5. Promueve a los analistas de Backoffice:
 
 ```sql
 update public.usuarios
@@ -101,7 +103,7 @@ set rol = 'backoffice'
 where correo = 'analista@empresa.com';
 ```
 
-5. Recomendado: en **Authentication → Providers → Email**, desactiva el registro público (*Allow new users to sign up*) y crea las cuentas desde el panel de administración.
+6. Recomendado: en **Authentication → Providers → Email**, desactiva el registro público (*Allow new users to sign up*) y crea las cuentas desde el panel de administración.
 
 ### Roles
 
@@ -250,3 +252,5 @@ on conflict (id) do nothing;
 - **Un agente recibe “Solo los usuarios de Backoffice…”**: actualiza su `rol` en `public.usuarios`.
 - **No se genera el radicado**: confirma que ejecutaste el `schema.sql` completo, incluidos el trigger `trg_casos_numero_radicado` y la tabla `secuencias_radicado`.
 - **Error de conexión**: revisa que `.env.local` tenga la URL y una de las dos claves (anon o publishable), y reinicia `npm run dev`.
+- **`column casos_escalamiento.assigned_to_id does not exist` o `/rest/v1/callbacks` con 404**: al proyecto Supabase le falta `migration_control_operativo.sql` (y probablemente `migration_f2b_completa.sql`). Ejecuta las tres migraciones del paso 2 en ese proyecto y corrobora con `verificar_bd.sql`.
+- **Los errores aparecen solo en otro equipo**: revisa la URL de `.env.local` en ese equipo; cada proyecto Supabase necesita sus propias migraciones. Un cambio de `.env.local` exige `npm run dev` o `npm run build` de nuevo porque `NEXT_PUBLIC_*` se incrusta en el bundle.
