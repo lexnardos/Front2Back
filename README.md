@@ -72,7 +72,7 @@ Cada plantilla genera una vista previa en texto lista para copiar y pegar en F7 
 
 ## Requisitos
 
-- Node.js 20 o superior.
+- Node.js 22 o superior (requerido por `@supabase/supabase-js` 2.119).
 - Cuenta y proyecto en [Supabase](https://supabase.com).
 
 ## 1. Clonar e instalar
@@ -177,8 +177,11 @@ Requisitos en el servidor: Docker y Docker Compose, y acceso Git al repositorio.
 ```bash
 git clone https://github.com/lexnardos/Front2Back.git
 cd Front2Back
+cp .env.example .env
 cp .env.production.example .env.production
-# edita .env.production con la URL y la publishable key de Supabase
+# edita ambos archivos con la URL y la publishable key de Supabase.
+# .env.production se inyecta en el contenedor; .env permite a Compose
+# sustituir las variables en los build args (NEXT_PUBLIC_* se incrusta al compilar).
 docker compose up -d --build
 ```
 
