@@ -190,3 +190,20 @@ export function IconUserCog(props: IconProps) {
     </svg>
   );
 }
+
+export function IconSun(props: IconProps) {
+  return (
+    <svg {...baseProps(props)}>
+      <circle cx="12" cy="12" r="4.2" />
+      <path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4m11.4-11.4 1.4-1.4" />
+    </svg>
+  );
+}
+
+export function IconMoon(props: IconProps) {
+  return (
+    <svg {...baseProps(props)}>
+      <path d="M20.4 14.2A8.3 8.3 0 0 1 10 3.6a8.3 8.3 0 1 0 10.8 10.6Z" />
+    </svg>
+  );
+}

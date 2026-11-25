@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Brand } from "@/components/brand";
 import { IconSearch } from "@/components/icons";
 import { NotificationBell } from "@/components/notification-bell";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { getSessionContext } from "@/lib/auth";
 
 export async function PublicHeader() {
@@ -33,6 +34,7 @@ export async function PublicHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
+          <ThemeToggle />
           <Link
             href="/consulta"
             className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 md:hidden"

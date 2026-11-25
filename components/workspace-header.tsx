@@ -5,6 +5,7 @@ import { CallbackReminder } from "@/components/callback-reminder";
 import { IconLogout, IconUser } from "@/components/icons";
 import { NotificationBell } from "@/components/notification-bell";
 import { ProfileDialog } from "@/components/profile-dialog";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { logout } from "@/app/login/actions";
 import type { RolUsuario } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -59,6 +60,7 @@ export function WorkspaceHeader({
         </div>
 
         <div className="flex items-center gap-3">
+          <ThemeToggle />
           <NotificationBell rol={rol} />
           {rol === "backoffice" ? (
             <ProfileDialog
