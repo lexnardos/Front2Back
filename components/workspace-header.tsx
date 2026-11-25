@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BackofficeNavLinks } from "@/components/backoffice-nav-links";
 import { Brand } from "@/components/brand";
 import { CallbackReminder } from "@/components/callback-reminder";
 import { IconLogout, IconUser } from "@/components/icons";
@@ -28,10 +29,6 @@ export function WorkspaceHeader({
   usuarioId,
 }: WorkspaceHeaderProps) {
   const links: Array<{ href: string; label: string; key: ActiveSection }> = [];
-
-  if (rol === "backoffice") {
-    links.push({ href: "/backoffice", label: "Bandeja", key: "backoffice" });
-  }
   links.push(
     { href: "/escalamiento", label: "Nuevo escalamiento", key: "escalamiento" },
     { href: "/consulta", label: "Consultar", key: "consulta" },
@@ -43,6 +40,7 @@ export function WorkspaceHeader({
         <div className="flex items-center gap-5">
           <Brand />
           <nav className="hidden items-center gap-0.5 sm:flex">
+            {rol === "backoffice" ? <BackofficeNavLinks /> : null}
             {links.map((link) => (
               <Link
                 key={link.href}
@@ -96,6 +94,7 @@ export function WorkspaceHeader({
         </div>
 
         <nav className="flex w-full items-center gap-0.5 overflow-x-auto pb-0.5 sm:hidden">
+          {rol === "backoffice" ? <BackofficeNavLinks compacto /> : null}
           {links.map((link) => (
             <Link
               key={link.href}

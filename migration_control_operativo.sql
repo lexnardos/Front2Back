@@ -90,7 +90,7 @@ begin
 
   if v_caso.locked_at is not null and v_caso.assigned_to_id = auth.uid() then
     update public.casos_escalamiento
-    set estado = 'En Proceso', updated_at = now()
+    set estado = 'En Proceso', paso_actual = 'En Gestión', updated_at = now()
     where id = p_caso_id
     returning * into v_caso;
     return v_caso;
@@ -102,7 +102,7 @@ begin
       locked_at = now(),
       asignado_a = auth.uid(),
       estado = 'En Proceso',
-      paso_actual = 'En gestión por ' || v_nombre,
+      paso_actual = 'En Gestión',
       updated_at = now()
   where id = p_caso_id
   returning * into v_caso;

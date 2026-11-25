@@ -103,6 +103,7 @@ export async function actualizarCaso(
   }
 
   revalidatePath("/backoffice");
+  revalidatePath("/backoffice/gestion");
   revalidatePath(`/backoffice/${casoId}`);
   revalidatePath("/consulta");
 
@@ -178,6 +179,7 @@ export async function devolverCaso(
   }
 
   revalidatePath("/backoffice");
+  revalidatePath("/backoffice/gestion");
   revalidatePath(`/backoffice/${casoId}`);
   revalidatePath("/consulta");
 
@@ -244,6 +246,7 @@ export async function tomarCaso(formData: FormData): Promise<ActualizarCasoState
   }
 
   revalidatePath("/backoffice");
+  revalidatePath("/backoffice/gestion");
   revalidatePath(`/backoffice/${casoId}`);
   return { ok: true, message: "Caso tomado. Quedó en gestión para ti." };
 }
@@ -267,6 +270,7 @@ export async function liberarCaso(formData: FormData): Promise<ActualizarCasoSta
   }
 
   revalidatePath("/backoffice");
+  revalidatePath("/backoffice/gestion");
   revalidatePath(`/backoffice/${casoId}`);
   return { ok: true, message: "Caso liberado y disponible para otro analista." };
 }
@@ -298,6 +302,7 @@ export async function reasignarCaso(
   }
 
   revalidatePath("/backoffice");
+  revalidatePath("/backoffice/gestion");
   revalidatePath(`/backoffice/${casoId}`);
   return { ok: true, message: "Caso reasignado correctamente." };
 }
@@ -348,6 +353,7 @@ export async function guardarEvidencias(
   }
 
   revalidatePath("/backoffice");
+  revalidatePath("/backoffice/gestion");
   revalidatePath("/consulta");
   return { ok: true };
 }

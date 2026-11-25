@@ -115,6 +115,10 @@ export function BackofficeBoard({
             : resultado.error ?? "No fue posible completar la operación.",
         });
         if (resultado.ok) {
+          if (accion === tomarCaso) {
+            router.push(`/backoffice/gestion?estado=en-proceso&caso=${casoId}`);
+            return;
+          }
           router.refresh();
         }
       } catch {
@@ -320,7 +324,7 @@ export function BackofficeBoard({
                 </td>
                 <td className="whitespace-nowrap px-4 py-3.5 text-right">
                   <Link
-                    href={`/backoffice/${caso.id}`}
+                    href={`/backoffice/gestion?estado=en-proceso&caso=${caso.id}`}
                     className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold text-slate-500 transition group-hover:bg-white group-hover:text-brand-700"
                   >
                     Gestionar

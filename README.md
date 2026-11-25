@@ -10,6 +10,7 @@ Aplicación web para la gestión, trazabilidad y consulta de escalamientos opera
 | --- | --- | --- |
 | Frontoffice | `/escalamiento` | Formulario dinámico por tipología. Genera el radicado `ESC-AÑO-0001` y registra el primer movimiento. |
 | Backoffice | `/backoffice` | Bandeja protegida con filtros, búsqueda, detalle del caso, actualización de estado/paso/responsable e historial automático. |
+| Gestión | `/backoffice/gestion` | Tablero de casos `Pendiente` + `En Proceso` con pestañas y contadores en Realtime, toma de casos y panel de gestión en modal. |
 | Consulta | `/consulta` | Buscador público por radicado con estado, línea de tiempo y observaciones de resolución. |
 | Acceso | `/login` | Autenticación con Supabase Auth para agentes y analistas de Backoffice. |
 
@@ -49,11 +50,12 @@ Cada plantilla genera una vista previa en texto lista para copiar y pegar en F7 
 │   ├── backoffice/
 │   │   ├── layout.tsx               # Protección por rol
 │   │   ├── page.tsx                 # Bandeja
-│   │   ├── actions.ts               # actualizarCaso
+│   │   ├── actions.ts               # actualizarCaso, tomar/liberar/reasignar
+│   │   ├── gestion/page.tsx         # Tablero "Gestión" (Pendiente + En Proceso)
 │   │   └── [id]/page.tsx            # Detalle + historial
 │   └── consulta/
 │       └── page.tsx                 # Módulo C
-├── components/                      # UI reutilizable
+├── components/                      # UI reutilizable (gestion-board, backoffice-board, actions panel…)
 ├── lib/
 │   ├── auth.ts
 │   ├── plantillas.ts                # Tipologías y campos dinámicos
@@ -89,8 +91,9 @@ npm install
    1. [`schema.sql`](./schema.sql) — tipos, tablas base, triggers y RLS.
    2. [`migration_f2b_completa.sql`](./migration_f2b_completa.sql) — columnas de SLA/devolución/cierre, `ticket_historial`, bucket `evidencias-casos` y RPC de devolución/reenvío/evidencias.
    3. [`migration_control_operativo.sql`](./migration_control_operativo.sql) — `assigned_to_id`, `locked_at`, tabla `callbacks`, bloqueos y recordatorios.
+   4. [`migration_gestion_paso.sql`](./migration_gestion_paso.sql) — estandariza `paso_actual = 'En Gestión'` al tomar un caso.
 
-   Los tres son idempotentes. **No** ejecutes `migration_sla_notificaciones.sql` ni `migration_notificaciones_realtime.sql` después: son versiones anteriores que sobrescriben funciones más recientes.
+   Los cuatro son idempotentes. **No** ejecutes `migration_sla_notificaciones.sql` ni `migration_notificaciones_realtime.sql` después: son versiones anteriores que sobrescriben funciones más recientes.
 3. Ejecuta [`verificar_bd.sql`](./verificar_bd.sql) en el mismo SQL Editor. Todas las filas deben mostrar `OK` y la última `BASE DE DATOS OK`. Si aparece `FALTA`, vuelve a ejecutar los archivos del paso 2.
 4. En **Authentication → Users**, crea los usuarios con correo y contraseña.
    - El trigger `handle_new_user` crea automáticamente el perfil en `public.usuarios` con rol `agente`.

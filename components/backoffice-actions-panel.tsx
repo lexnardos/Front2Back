@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import {
   liberarCaso,
@@ -36,6 +36,7 @@ export function BackofficeActionsPanel({
   analistas,
 }: BackofficeActionsPanelProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const [caso, setCaso] = useState(casoInicial);
   const [mensaje, setMensaje] = useState<{ ok: boolean; texto: string } | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -85,7 +86,13 @@ export function BackofficeActionsPanel({
             ? resultado.message ?? "Operación realizada."
             : resultado.error ?? "No fue posible completar la operación.",
         });
-        if (resultado.ok) router.refresh();
+        if (!resultado.ok) return;
+
+        if (accion === tomarCaso && !pathname.startsWith("/backoffice/gestion")) {
+          router.push(`/backoffice/gestion?estado=en-proceso&caso=${caso.id}`);
+          return;
+        }
+        router.refresh();
       } catch {
         setMensaje({
           ok: false,

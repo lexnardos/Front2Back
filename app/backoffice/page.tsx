@@ -193,6 +193,10 @@ export default async function BackofficePage({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Link href="/backoffice/gestion" className="btn-primary">
+            Ir a gestión
+            <IconArrowRight className="h-4 w-4" />
+          </Link>
           <Link href="/backoffice/metricas" className="btn-secondary">
             <IconDashboard className="h-4 w-4 text-slate-500" />
             Métricas y reportes
